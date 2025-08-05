@@ -205,35 +205,16 @@ const Chatbot = ({ isOpen, onClose }) => {
   // Load languages and FAQs on component mount
   useEffect(() => {
     if (isOpen) {
-      loadLanguages()
-      loadFAQs()
       initializeChat()
+      // Set default languages since we don't have a languages API
+      setLanguages([
+        { code: 'en', native_name: 'English' },
+        { code: 'bem', native_name: 'Bemba (Ichibemba)' },
+        { code: 'loz', native_name: 'Lozi (Silozi)' },
+        { code: 'nya', native_name: 'Nyanja (Chinyanja)' }
+      ])
     }
   }, [isOpen])
-
-  const loadLanguages = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/faq/languages/`)
-      if (response.ok) {
-        const data = await response.json()
-        setLanguages(data)
-      }
-    } catch (error) {
-      console.error('Error loading languages:', error)
-    }
-  }
-
-  const loadFAQs = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/faq/faqs/popular/?language=${currentLanguage}&limit=5`)
-      if (response.ok) {
-        const data = await response.json()
-        setFaqs(data.popular_faqs || [])
-      }
-    } catch (error) {
-      console.error('Error loading FAQs:', error)
-    }
-  }
 
   const initializeChat = () => {
     if (messages.length === 0) {
@@ -344,9 +325,6 @@ const Chatbot = ({ isOpen, onClose }) => {
       timestamp: new Date().toISOString()
     }
     setMessages(prev => [...prev, languageChangeMessage])
-
-    // Load FAQs for new language
-    loadFAQs()
   }
 
   const handleFAQClick = (faq) => {
