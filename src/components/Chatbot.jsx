@@ -254,15 +254,14 @@ const Chatbot = ({ isOpen, onClose }) => {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/`, {
+      const response = await fetch(`${API_BASE_URL}/chatbot/chat/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message: userMessage.content,
-          language: currentLanguage,
-          session_id: sessionId
+          session_id: sessionId || 'anonymous'
         })
       })
 
