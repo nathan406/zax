@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 
-const API_BASE_URL = 'http://localhost:8000/api'
+// API Configuration - automatically switches between development and production
+const isDevelopment = import.meta.env.MODE === 'development'
+const API_BASE_URL = isDevelopment 
+  ? 'http://localhost:8000/api'  // Development (local)
+  : import.meta.env.VITE_API_URL || 'https://zax-backend.onrender.com/api'  // Production (deployed)
+
+console.log('🔗 Chatbot API Configuration:', {
+  mode: import.meta.env.MODE,
+  isDevelopment,
+  apiUrl: API_BASE_URL
+})
 
 // Typewriter component for text animation
 const TypewriterText = ({ text, speed = 30, onComplete }) => {
