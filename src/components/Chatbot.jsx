@@ -9,7 +9,8 @@ const API_BASE_URL = isDevelopment
 console.log('🔗 Chatbot API Configuration:', {
   mode: import.meta.env.MODE,
   isDevelopment,
-  apiUrl: API_BASE_URL
+  apiUrl: API_BASE_URL,
+  timestamp: new Date().toISOString()
 })
 
 // Typewriter component for text animation
