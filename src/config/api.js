@@ -4,7 +4,7 @@ const isDevelopment = import.meta.env.MODE === 'development';
 // API Base URL - automatically switches between development and production
 export const API_BASE_URL = isDevelopment 
   ? 'http://localhost:8000/api'  // Development
-  : import.meta.env.VITE_API_URL || 'https://zax-backend.onrender.com/api';  // Production
+  : import.meta.env.VITE_API_URL || 'https://zaxbackend.onrender.com/api';  // Production
 
 // API Endpoints
 export const API_ENDPOINTS = {

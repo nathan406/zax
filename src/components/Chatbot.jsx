@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 const isDevelopment = import.meta.env.MODE === 'development'
 const API_BASE_URL = isDevelopment 
   ? 'http://localhost:8000/api'  // Development (local)
-  : import.meta.env.VITE_API_URL || 'https://zax-backend.onrender.com/api'  // Production (deployed)
+  : import.meta.env.VITE_API_URL || 'https://zaxbackend.onrender.com/api'  // Production (deployed)
 
 console.log('🔗 Chatbot API Configuration:', {
   mode: import.meta.env.MODE,
@@ -40,14 +40,13 @@ const Chatbot = ({ isOpen, onClose }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
-  const [currentLanguage, setCurrentLanguage] = useState('en')
-  const [languages, setLanguages] = useState([])
-  const [showLanguageSelector, setShowLanguageSelector] = useState(false)
+  const [currentLanguage, setCurrentLanguage] = useState('en') // Kept for welcome messages but will default to English only
   const [faqs, setFaqs] = useState([])
   const [showFAQs, setShowFAQs] = useState(false)
   const [chatVisible, setChatVisible] = useState(false)
   const [typingMessageId, setTypingMessageId] = useState(null)
   const [welcomeVisible, setWelcomeVisible] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const messagesEndRef = useRef(null)
 
   const languageNames = {
@@ -203,17 +202,10 @@ const Chatbot = ({ isOpen, onClose }) => {
     scrollToBottom()
   }, [messages])
 
-  // Load languages and FAQs on component mount
+  // Initialize chat on component mount
   useEffect(() => {
     if (isOpen) {
       initializeChat()
-      // Set default languages since we don't have a languages API
-      setLanguages([
-        { code: 'en', native_name: 'English' },
-        { code: 'bem', native_name: 'Bemba (Ichibemba)' },
-        { code: 'loz', native_name: 'Lozi (Silozi)' },
-        { code: 'nya', native_name: 'Nyanja (Chinyanja)' }
-      ])
     }
   }, [isOpen])
 
@@ -272,6 +264,7 @@ const Chatbot = ({ isOpen, onClose }) => {
           isZRARelated: data.is_zra_related,
           needsSupport: data.needs_support,
           suggestedFAQs: data.suggested_faqs || [],
+          followUpSuggestions: data.follow_up_suggestions || [],
           id: Date.now() // Add unique ID for typewriter effect
         }
 
@@ -296,37 +289,7 @@ const Chatbot = ({ isOpen, onClose }) => {
     }
   }
 
-  const changeLanguage = async (newLanguage) => {
-    if (newLanguage === currentLanguage) return
 
-    setCurrentLanguage(newLanguage)
-    setShowLanguageSelector(false)
-
-    // Update session language if we have a session
-    if (sessionId) {
-      try {
-        await fetch(`${API_BASE_URL}/chat/language/${sessionId}/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            language: newLanguage
-          })
-        })
-      } catch (error) {
-        console.error('Error changing language:', error)
-      }
-    }
-
-    // Add language change message
-    const languageChangeMessage = {
-      type: 'system',
-      content: `Language changed to ${languageNames[newLanguage]}`,
-      timestamp: new Date().toISOString()
-    }
-    setMessages(prev => [...prev, languageChangeMessage])
-  }
 
   const handleFAQClick = (faq) => {
     const question = currentLanguage === 'en' 
@@ -335,6 +298,83 @@ const Chatbot = ({ isOpen, onClose }) => {
 
     setInputMessage(question)
     setShowFAQs(false)
+  }
+
+  // Function to format bot responses based on content type
+  const formatBotResponse = (content, message) => {
+    // Check if response contains tax calculation information - very specific detection
+    const hasCalculationTerms = (content.toLowerCase().includes('calculate') && 
+                                (content.toLowerCase().includes('tax') || content.toLowerCase().includes('rate'))) || 
+                                (content.toLowerCase().includes('calculation') && content.toLowerCase().includes('tax')) ||
+                                content.toLowerCase().includes('tax rate') ||
+                                content.toLowerCase().includes('how much tax') ||
+                                content.toLowerCase().includes('tax amount');
+                                
+    if (hasCalculationTerms) {
+      return (
+        <div className="space-y-2">
+          <p className="whitespace-pre-wrap">{content}</p>
+          {typingMessageId !== message.id && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
+              <p className="font-medium text-blue-800">💡 Need to calculate this yourself?</p>
+              <a 
+                href="https://www.zra.org.zm/tax-calculators" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-700 hover:text-blue-900 inline-flex items-center gap-1"
+              >
+                Use our official tax calculators
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+
+    
+
+    
+    // Check if response contains explicit contact information - very specific detection
+    if ((content.toLowerCase().includes('contact') || 
+         content.toLowerCase().includes('reach')) &&
+        (content.toLowerCase().includes('phone') ||
+         content.toLowerCase().includes('number') ||
+         content.toLowerCase().includes('email') ||
+         content.toLowerCase().includes('call us'))) {
+      return (
+        <div className="space-y-2">
+          <p className="whitespace-pre-wrap">{content}</p>
+          {typingMessageId !== message.id && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
+              <p className="font-medium text-blue-800">📞 Contact Information:</p>
+              <a 
+                href="https://www.zra.org.zm/contact-us" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-700 hover:text-blue-900 inline-flex items-center gap-1"
+              >
+                Visit our contact page
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Default response
+    return <p className="whitespace-pre-wrap">{content}</p>;
+  }
+
+  const insertEmoji = (emoji) => {
+    setInputMessage(prev => prev + emoji)
+    setShowEmojiPicker(false)
   }
 
   const handleKeyPress = (e) => {
@@ -387,37 +427,10 @@ const Chatbot = ({ isOpen, onClose }) => {
           <span className="text-xs opacity-75">AI Tax Assistant</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Language Selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowLanguageSelector(!showLanguageSelector)}
-              className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition-colors"
-              title="Change Language"
-            >
-              {currentLanguage.toUpperCase()}
-            </button>
-            {showLanguageSelector && (
-              <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 min-w-32">
-                {languages.map(lang => (
-                  <button
-                    key={lang.code}
-                    onClick={() => changeLanguage(lang.code)}
-                    className={`block w-full text-left px-3 py-2 text-xs hover:bg-gray-100 ${
-                      lang.code === currentLanguage ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                    }`}
-                  >
-                    {lang.native_name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          
-                    
           {/* Close Button */}
           <button 
             onClick={onClose} 
-            className="text-xl hover:text-amber-300 transition-colors"
+            className="text-2xl sm:text-xl hover:text-amber-300 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10"
           >
             ×
           </button>
@@ -471,33 +484,173 @@ const Chatbot = ({ isOpen, onClose }) => {
                   <p className="text-sm font-medium">{message.welcomeData?.question || "What can I help you with today?"}</p>
                 </div>
               ) : (
-                <p className="text-sm whitespace-pre-wrap">
+                <div className="prose max-w-none text-sm">
                   {message.type === 'bot' && typingMessageId === message.id ? (
-                    <TypewriterText 
-                      text={message.content} 
-                      speed={25} 
-                      onComplete={() => setTypingMessageId(null)}
-                    />
+                    <div className="whitespace-pre-wrap">
+                      <TypewriterText 
+                        text={message.content} 
+                        speed={5} 
+                        onComplete={() => setTypingMessageId(null)}
+                      />
+                    </div>
                   ) : (
-                    message.content
+                    formatBotResponse(message.content.replace(/their/g, 'our').replace(/they/g, 'we'), message)
                   )}
-                </p>
-              )}
-              
-              {message.suggestedFAQs && message.suggestedFAQs.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-gray-200">
-                  <p className="text-xs font-medium mb-1">Related questions:</p>
-                  {message.suggestedFAQs.slice(0, 2).map((faq, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleFAQClick(faq)}
-                      className="block text-xs text-blue-600 hover:text-blue-800 mb-1"
-                    >
-                      • {currentLanguage === 'en' 
-                          ? faq.question_en 
-                          : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
-                    </button>
-                  ))}
+                  
+                  {/* Enhanced follow-up suggestions */}
+                  {message.suggestedFAQs && message.suggestedFAQs.length > 0 && (
+                    <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium mb-2 text-gray-700">You might also want to know:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {message.suggestedFAQs.slice(0, 3).map((faq, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleFAQClick(faq)}
+                            className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition-colors border border-blue-200"
+                          >
+                            {currentLanguage === 'en' 
+                                ? faq.question_en 
+                                : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Dynamic follow-up suggestions from backend */}
+                  {typingMessageId !== message.id && message.followUpSuggestions && message.followUpSuggestions.length > 0 && (
+                    <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium mb-2 text-gray-700">Need more help?</p>
+                      <div className="flex flex-wrap gap-2">
+                        {message.followUpSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setInputMessage(suggestion.question)}
+                            className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                          >
+                            {suggestion.question}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Add links to official ZRA resources if available */}
+                  {message.isZRARelated && !message.needsSupport && (
+                    <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium mb-1 text-gray-700">Official Resources:</p>
+                      <div className="flex flex-wrap gap-2">
+                        <a 
+                          href="https://www.zra.org.zm" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                        >
+                          Our Website
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                        {message.content.toLowerCase().includes('vat') && (
+                          <a 
+                            href="https://www.zra.org.zm/indirect-taxes/vat" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          >
+                            VAT Information
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        )}
+                        {message.content.toLowerCase().includes('paye') && (
+                          <a 
+                            href="https://www.zra.org.zm/direct-taxes/paye" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          >
+                            PAYE Information
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        )}
+                        {message.content.toLowerCase().includes('custom') || message.content.toLowerCase().includes('import') || message.content.toLowerCase().includes('export') ? (
+                          <a 
+                            href="https://www.zra.org.zm/trade-facilitation" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          >
+                            Customs Information
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Context-aware interactive elements for relevant processes */}
+                  {typingMessageId !== message.id && (
+                    <>
+                      {message.content.toLowerCase().includes('register') && 
+                       (message.content.toLowerCase().includes('vat') || 
+                        message.content.toLowerCase().includes('tax') ||
+                        message.content.toLowerCase().includes('business')) && (
+                        <div className="mt-3 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-medium mb-2 text-gray-700">Next Steps:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {message.content.toLowerCase().includes('vat') && (
+                              <button
+                                onClick={() => setInputMessage("How do I register for VAT?")}
+                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                              >
+                                VAT Registration
+                              </button>
+                            )}
+                            {(message.content.toLowerCase().includes('business') || message.content.toLowerCase().includes('company')) && (
+                              <button
+                                onClick={() => setInputMessage("What documents do I need for business registration?")}
+                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                              >
+                                Business Docs
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {(message.content.toLowerCase().includes('file') || message.content.toLowerCase().includes('return')) && 
+                       (message.content.toLowerCase().includes('vat') || 
+                        message.content.toLowerCase().includes('paye') ||
+                        message.content.toLowerCase().includes('tax')) && (
+                        <div className="mt-3 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-medium mb-2 text-gray-700">Need Help Filing?</p>
+                          <div className="flex flex-wrap gap-2">
+                            {message.content.toLowerCase().includes('vat') && (
+                              <button
+                                onClick={() => setInputMessage("How do I file my VAT return?")}
+                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                              >
+                                VAT Filing
+                              </button>
+                            )}
+                            {message.content.toLowerCase().includes('paye') && (
+                              <button
+                                onClick={() => setInputMessage("How do I file my PAYE return?")}
+                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                              >
+                                PAYE Filing
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -520,16 +673,53 @@ const Chatbot = ({ isOpen, onClose }) => {
 
       {/* Input */}
       <div className="p-3 border-t bg-gray-50 rounded-b-lg">
-        <div className="flex gap-2">
+        <div className="relative mb-2">
           <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
             placeholder={currentLanguage === 'en' ? "Type your question..." : "Lembani mupusho wenu..."}
             rows="1"
             disabled={isLoading}
           />
+          
+          {/* Emoji Button inside input on right side */}
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="absolute right-2.5 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
+            title="Insert Emoji"
+          >
+            😊
+          </button>
+          
+          {/* Emoji Picker */}
+          {showEmojiPicker && (
+            <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-w-xs z-20">
+              <div className="grid grid-cols-8 gap-1">
+                {['😀', '😂', '😊', '😍', '🥰', '😎', '🤗', '🤔', 
+                  '👍', '👏', '🙌', '👌', '🙏', '🔥', '✨', '🎉',
+                  '💯', '✅', '❓', '❗', '❤️', '💖', '💙', '💕',
+                  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+                  '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌',
+                  '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
+                  '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐',
+                  '😑', '😶', '😏', '😒', '🙄', '😬', '🤤', '😴'].map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => insertEmoji(emoji)}
+                    className="text-lg p-1 hover:bg-gray-100 rounded"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex justify-end">
           <button 
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading}
