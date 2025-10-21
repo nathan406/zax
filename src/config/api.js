@@ -11,6 +11,7 @@ export const API_ENDPOINTS = {
   CHAT: `${API_BASE_URL}/chatbot/chat/`,
   CHAT_HISTORY: `${API_BASE_URL}/chatbot/chat/`,
   CHAT_LOGS: `${API_BASE_URL}/chatbot/logs/`,
+  FILE_UPLOAD: `${API_BASE_URL}/chatbot/upload/`,
 };
 
 // Default headers for API requests

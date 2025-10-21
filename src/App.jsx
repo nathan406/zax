@@ -21,37 +21,37 @@ function App() {
     {
       title: "ZRA TO PARTICIPATE IN LUSAKA'S AGRICULTURAL & COMMERCIAL SHOW",
       author: "Kumbwani Mambo",
-      date: "July 26, 2025",
+      date: "September 26, 2025",
       image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=600&q=80"
     },
     {
       title: '"EVERYONE MUST PAY TAXES" – Dr Musokotwane',
       author: "Kumbwani Mambo", 
-      date: "July 25, 2025",
+      date: "September 25, 2025",
       image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80"
     },
     {
       title: "ZRA SEIZES 300 CASES OF SMUGGLED KONYAGI BEER",
       author: "Kumbwani Mambo",
-      date: "July 24, 2025", 
+      date: "September 24, 2025", 
       image: "https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=600&q=80"
     },
     {
       title: "ZRA SEIZES TWO TRUCKS WITH SMUGGLED PREFORMS",
       author: "Kumbwani Mambo",
-      date: "July 22, 2025",
+      date: "September 22, 2025",
       image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=600&q=80"
     },
     {
       title: "ZRA DATES MAJORETTES FOR TAX EDUCATION",
       author: "Kumbwani Mambo",
-      date: "July 22, 2025",
+      date: "September 22, 2025",
       image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80"
     },
     {
       title: "TECHNOLOGY MINISTER APPLAUDS ZRA FOR DIGITAL TRANSFORMATION",
       author: "Kumbwani Mambo",
-      date: "July 19, 2025",
+      date: "September 19, 2025",
       image: "https://images.unsplash.com/photo-1518186285589-2f7649de83e0?auto=format&fit=crop&w=600&q=80"
     }
   ]

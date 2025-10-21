@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { API_ENDPOINTS } from '../config/api.js'
 
 // API Configuration - automatically switches between development and production
 const isDevelopment = import.meta.env.MODE === 'development'
@@ -47,6 +48,9 @@ const Chatbot = ({ isOpen, onClose }) => {
   const [typingMessageId, setTypingMessageId] = useState(null)
   const [welcomeVisible, setWelcomeVisible] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState([])
+  const [uploadingFiles, setUploadingFiles] = useState(false)
+  const fileInputRef = useRef(null)
   const messagesEndRef = useRef(null)
 
   const languageNames = {
@@ -54,6 +58,79 @@ const Chatbot = ({ isOpen, onClose }) => {
     bem: 'Bemba (Ichibemba)',
     loz: 'Lozi (Silozi)',
     nya: 'Nyanja (Chinyanja)'
+  }
+
+  // File upload functions
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files)
+    
+    // Add file size and type validation
+    const validFiles = files.filter(file => {
+      const maxSize = 5 * 1024 * 1024 // 5MB limit
+      if (file.size > maxSize) {
+        alert(`File ${file.name} is too large. Max size is 5MB.`)
+        return false
+      }
+      return true
+    })
+    
+    setSelectedFiles(prev => [...prev, ...validFiles])
+  }
+
+  const removeFile = (indexToRemove) => {
+    setSelectedFiles(prev => prev.filter((_, index) => index !== indexToRemove))
+  }
+
+  const uploadFiles = async (session_id) => {
+    if (selectedFiles.length === 0) return []
+    
+    const formData = new FormData()
+    selectedFiles.forEach(file => {
+      formData.append('files', file)
+    })
+    formData.append('session_id', session_id || sessionId || 'anonymous')
+    
+    setUploadingFiles(true)
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.FILE_UPLOAD, {
+        method: 'POST',
+        body: formData, // Don't set Content-Type header when using FormData
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Files uploaded successfully:', data)
+        
+        // Add a message to indicate files were uploaded
+        const fileUploadMessage = {
+          type: 'system',
+          content: `Uploaded ${data.files.length} file(s): ${data.files.map(f => f.original_filename).join(', ')}`,
+          timestamp: new Date().toISOString(),
+          isFileUpload: true,
+          files: data.files
+        }
+        
+        setMessages(prev => [...prev, fileUploadMessage])
+        setSelectedFiles([]) // Clear selected files after successful upload
+        return data.files
+      } else {
+        console.error('File upload failed:', response.statusText)
+        throw new Error(`Upload failed: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error)
+      const errorMessage = {
+        type: 'system',
+        content: `Failed to upload files: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        isError: true
+      }
+      setMessages(prev => [...prev, errorMessage])
+      return []
+    } finally {
+      setUploadingFiles(false)
+    }
   }
 
   const welcomeMessages = {
@@ -225,67 +302,80 @@ const Chatbot = ({ isOpen, onClose }) => {
   }
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return
+    if ((!inputMessage.trim() && selectedFiles.length === 0) || isLoading) return
 
-    const userMessage = {
-      type: 'user',
-      content: inputMessage.trim(),
-      timestamp: new Date().toISOString()
+    // Upload files first if any
+    let uploadedFiles = []
+    if (selectedFiles.length > 0) {
+      uploadedFiles = await uploadFiles(sessionId || 'anonymous')
     }
 
-    setMessages(prev => [...prev, userMessage])
-    setInputMessage('')
-    setIsLoading(true)
+    // Only send message if there's text content
+    if (inputMessage.trim()) {
+      const userMessage = {
+        type: 'user',
+        content: inputMessage.trim(),
+        timestamp: new Date().toISOString()
+      }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/chatbot/chat/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userMessage.content,
-          session_id: sessionId || 'anonymous'
+      setMessages(prev => [...prev, userMessage])
+      setInputMessage('')
+    }
+
+    // If there's text content or files were uploaded, trigger the AI
+    if (inputMessage.trim() || selectedFiles.length > 0) {
+      setIsLoading(true)
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/chatbot/chat/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: inputMessage.trim() || `I've uploaded ${selectedFiles.length} file(s) for reference. Please analyze them and respond accordingly.`,
+            session_id: sessionId || 'anonymous'
+          })
         })
-      })
 
-      if (response.ok) {
-        const data = await response.json()
-        
-        // Update session ID if new
-        if (data.session_id && !sessionId) {
-          setSessionId(data.session_id)
+        if (response.ok) {
+          const data = await response.json()
+          
+          // Update session ID if new
+          if (data.session_id && !sessionId) {
+            setSessionId(data.session_id)
+          }
+
+          const botMessage = {
+            type: 'bot',
+            content: data.response,
+            timestamp: new Date().toISOString(),
+            isZRARelated: data.is_zra_related,
+            needsSupport: data.needs_support,
+            suggestedFAQs: data.suggested_faqs || [],
+            followUpSuggestions: data.follow_up_suggestions || [],
+            id: Date.now() // Add unique ID for typewriter effect
+          }
+
+          setMessages(prev => [...prev, botMessage])
+          setTypingMessageId(botMessage.id) // Set this message to use typewriter effect
+        } else {
+          throw new Error('Failed to send message')
         }
-
-        const botMessage = {
+      } catch (error) {
+        console.error('Error sending message:', error)
+        const errorMessage = {
           type: 'bot',
-          content: data.response,
+          content: currentLanguage === 'en' 
+            ? "I'm sorry, I'm experiencing technical difficulties. Please try again later."
+            : "Nshilafwaya, nkwete amashuko ya tekiniko. Mwayeshe nangu.",
           timestamp: new Date().toISOString(),
-          isZRARelated: data.is_zra_related,
-          needsSupport: data.needs_support,
-          suggestedFAQs: data.suggested_faqs || [],
-          followUpSuggestions: data.follow_up_suggestions || [],
-          id: Date.now() // Add unique ID for typewriter effect
+          isError: true
         }
-
-        setMessages(prev => [...prev, botMessage])
-        setTypingMessageId(botMessage.id) // Set this message to use typewriter effect
-      } else {
-        throw new Error('Failed to send message')
+        setMessages(prev => [...prev, errorMessage])
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      console.error('Error sending message:', error)
-      const errorMessage = {
-        type: 'bot',
-        content: currentLanguage === 'en' 
-          ? "I'm sorry, I'm experiencing technical difficulties. Please try again later."
-          : "Nshilafwaya, nkwete amashuko ya tekiniko. Mwayeshe nangu.",
-        timestamp: new Date().toISOString(),
-        isError: true
-      }
-      setMessages(prev => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -678,20 +768,30 @@ const Chatbot = ({ isOpen, onClose }) => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-14 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
             placeholder={currentLanguage === 'en' ? "Type your question..." : "Lembani mupusho wenu..."}
             rows="1"
             disabled={isLoading}
           />
           
-          {/* Emoji Button inside input on right side */}
+          {/* Emoji Button */}
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="absolute right-2.5 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
+            className="absolute right-10 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
             title="Insert Emoji"
           >
             😊
+          </button>
+          
+          {/* File Upload Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
+            title="Upload file"
+          >
+            📎
           </button>
           
           {/* Emoji Picker */}
@@ -717,15 +817,45 @@ const Chatbot = ({ isOpen, onClose }) => {
               </div>
             </div>
           )}
+          
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            multiple
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.odt,.rtf"
+          />
         </div>
         
-        <div className="flex justify-end">
+        {/* Selected files preview */}
+        {selectedFiles.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="flex items-center bg-blue-100 text-blue-800 rounded px-2 py-1 text-xs">
+                <span className="truncate max-w-[100px]">{file.name}</span>
+                <button 
+                  type="button" 
+                  onClick={() => removeFile(index)}
+                  className="ml-1 text-blue-600 hover:text-blue-900"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="flex justify-between items-center">
+          <div className="text-xs text-gray-500">
+            {uploadingFiles ? 'Uploading files...' : `${selectedFiles.length} file(s) selected`}
+          </div>
           <button 
             onClick={sendMessage}
-            disabled={!inputMessage.trim() || isLoading}
+            disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || uploadingFiles}
             className="bg-[#1e40af] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
-            {isLoading ? '...' : (currentLanguage === 'en' ? 'Send' : 'Tuma')}
+            {isLoading || uploadingFiles ? '...' : (currentLanguage === 'en' ? 'Send' : 'Tuma')}
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
