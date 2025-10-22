@@ -14,6 +14,45 @@ console.log('🔗 Chatbot API Configuration:', {
   timestamp: new Date().toISOString()
 })
 
+// Local storage constants
+const CHAT_HISTORY_KEY = 'zax-chat-history';
+const MAX_CHAT_SESSIONS = 50; // Limit number of stored chat sessions
+
+// Utility functions for chat history
+const getChatHistory = () => {
+  try {
+    const history = localStorage.getItem(CHAT_HISTORY_KEY);
+    return history ? JSON.parse(history) : [];
+  } catch (error) {
+    console.error('Error reading chat history from localStorage:', error);
+    return [];
+  }
+};
+
+const saveChatHistory = (history) => {
+  try {
+    // Limit number of stored sessions to prevent storage overflow
+    const limitedHistory = history.slice(0, MAX_CHAT_SESSIONS);
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(limitedHistory));
+  } catch (error) {
+    console.error('Error saving chat history to localStorage:', error);
+  }
+};
+
+const generateSessionId = () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+const generateSessionTitle = (messages) => {
+  if (messages.length === 0) return 'New Chat';
+  
+  // Find the first user message to use as title
+  const firstUserMessage = messages.find(msg => msg.type === 'user');
+  if (firstUserMessage) {
+    return firstUserMessage.content.substring(0, 30) + (firstUserMessage.content.length > 30 ? '...' : '');
+  }
+  
+  return 'Chat Session';
+};
+
 // Typewriter component for text animation
 const TypewriterText = ({ text, speed = 30, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('')
@@ -41,19 +80,21 @@ const Chatbot = ({ isOpen, onClose }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
-  const [currentLanguage, setCurrentLanguage] = useState('en') // Kept for welcome messages but will default to English only
-  const [faqs, setFaqs] = useState([])
+  const [currentLanguage, _setCurrentLanguage] = useState('en') // Kept for welcome messages but will default to English only
+  const [faqs, _setFaqs] = useState([])
   const [showFAQs, setShowFAQs] = useState(false)
-  const [chatVisible, setChatVisible] = useState(false)
+  const [_chatVisible, setChatVisible] = useState(false)
   const [typingMessageId, setTypingMessageId] = useState(null)
   const [welcomeVisible, setWelcomeVisible] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState(null)
+  const [showSidebar, setShowSidebar] = useState(false)
   const fileInputRef = useRef(null)
   const messagesEndRef = useRef(null)
 
-  const languageNames = {
+  const _languageNames = {
     en: 'English',
     bem: 'Bemba (Ichibemba)',
     loz: 'Lozi (Silozi)',
@@ -111,8 +152,10 @@ const Chatbot = ({ isOpen, onClose }) => {
           files: data.files
         }
         
-        setMessages(prev => [...prev, fileUploadMessage])
+        const updatedMessages = [...messages, fileUploadMessage];
+        setMessages(updatedMessages);
         setSelectedFiles([]) // Clear selected files after successful upload
+        
         return data.files
       } else {
         console.error('File upload failed:', response.statusText)
@@ -126,7 +169,9 @@ const Chatbot = ({ isOpen, onClose }) => {
         timestamp: new Date().toISOString(),
         isError: true
       }
-      setMessages(prev => [...prev, errorMessage])
+      const updatedMessages = [...messages, errorMessage];
+      setMessages(updatedMessages);
+      
       return []
     } finally {
       setUploadingFiles(false)
@@ -279,14 +324,10 @@ const Chatbot = ({ isOpen, onClose }) => {
     scrollToBottom()
   }, [messages])
 
-  // Initialize chat on component mount
-  useEffect(() => {
-    if (isOpen) {
-      initializeChat()
-    }
-  }, [isOpen])
+  // Initialize chat function (memoized so it can be used in effects safely)
+  const initializeChat = useRef(null)
 
-  const initializeChat = () => {
+  initializeChat.current = () => {
     if (messages.length === 0) {
       const welcomeOptions = welcomeMessages[currentLanguage]
       const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)]
@@ -297,18 +338,100 @@ const Chatbot = ({ isOpen, onClose }) => {
         isWelcome: true,
         welcomeData: randomWelcome
       }
-      setMessages([welcomeMessage])
+      const newMessages = [welcomeMessage];
+      setMessages(newMessages);
+      
+      // Save to history if we have a session ID
+      if (currentSessionId) {
+        const newSession = {
+          id: currentSessionId,
+          messages: newMessages,
+          timestamp: new Date().toISOString(),
+          title: generateSessionTitle(newMessages)
+        };
+        
+        const history = getChatHistory();
+        const existingSessionIndex = history.findIndex(session => session.id === currentSessionId);
+        
+        if (existingSessionIndex !== -1) {
+          // Update existing session
+          history[existingSessionIndex] = newSession;
+        } else {
+          // Add new session
+          history.push(newSession);
+        }
+        
+        saveChatHistory(history);
+      }
     }
   }
+
+  // Initialize chat on component mount
+  useEffect(() => {
+    if (isOpen) {
+      initializeChat.current()
+    }
+  }, [isOpen])
+  
+  // Load chat history from localStorage when component mounts
+  useEffect(() => {
+    if (isOpen) {
+      const history = getChatHistory();
+      if (history.length > 0) {
+        // Load the most recent session
+        const latestSession = history[history.length - 1];
+        setMessages(latestSession.messages);
+        setCurrentSessionId(latestSession.id);
+      } else {
+        // Create a new session if no history exists
+        const newSessionId = generateSessionId();
+        setCurrentSessionId(newSessionId);
+      }
+    }
+  }, [isOpen])
+  
+  // Update chat history when messages change
+  useEffect(() => {
+    if (messages.length > 0 && currentSessionId) {
+      const session = {
+        id: currentSessionId,
+        messages: messages,
+        timestamp: new Date().toISOString(),
+        title: generateSessionTitle(messages)
+      };
+      
+      const history = getChatHistory();
+      const existingSessionIndex = history.findIndex(s => s.id === currentSessionId);
+      
+      if (existingSessionIndex !== -1) {
+        // Update existing session
+        history[existingSessionIndex] = session;
+      } else {
+        // Add new session
+        history.push(session);
+      }
+      
+      saveChatHistory(history);
+    }
+  }, [messages, currentSessionId])
+
+  
 
   const sendMessage = async () => {
     if ((!inputMessage.trim() && selectedFiles.length === 0) || isLoading) return
 
-    // Upload files first if any
-    let uploadedFiles = []
-    if (selectedFiles.length > 0) {
-      uploadedFiles = await uploadFiles(sessionId || 'anonymous')
+    // Create a new session ID if one doesn't exist
+    const sessionToUse = currentSessionId || generateSessionId();
+    if (!currentSessionId) {
+      setCurrentSessionId(sessionToUse);
     }
+
+    // Upload files first if any
+    if (selectedFiles.length > 0) {
+      await uploadFiles(sessionId || 'anonymous')
+    }
+
+    let updatedMessages = [...messages]; // Use current messages state
 
     // Only send message if there's text content
     if (inputMessage.trim()) {
@@ -318,8 +441,9 @@ const Chatbot = ({ isOpen, onClose }) => {
         timestamp: new Date().toISOString()
       }
 
-      setMessages(prev => [...prev, userMessage])
-      setInputMessage('')
+      updatedMessages = [...updatedMessages, userMessage];
+      setMessages(updatedMessages);
+      setInputMessage('');
     }
 
     // If there's text content or files were uploaded, trigger the AI
@@ -357,7 +481,8 @@ const Chatbot = ({ isOpen, onClose }) => {
             id: Date.now() // Add unique ID for typewriter effect
           }
 
-          setMessages(prev => [...prev, botMessage])
+          updatedMessages = [...updatedMessages, botMessage];
+          setMessages(updatedMessages);
           setTypingMessageId(botMessage.id) // Set this message to use typewriter effect
         } else {
           throw new Error('Failed to send message')
@@ -372,14 +497,13 @@ const Chatbot = ({ isOpen, onClose }) => {
           timestamp: new Date().toISOString(),
           isError: true
         }
-        setMessages(prev => [...prev, errorMessage])
+        updatedMessages = [...updatedMessages, errorMessage];
+        setMessages(updatedMessages);
       } finally {
         setIsLoading(false)
       }
     }
   }
-
-
 
   const handleFAQClick = (faq) => {
     const question = currentLanguage === 'en' 
@@ -424,7 +548,6 @@ const Chatbot = ({ isOpen, onClose }) => {
       );
     }
     
-
     
 
     
@@ -473,6 +596,86 @@ const Chatbot = ({ isOpen, onClose }) => {
       sendMessage()
     }
   }
+  
+  // Function to load a specific chat session
+  const loadChatSession = (sessionId) => {
+    const history = getChatHistory();
+    const session = history.find(s => s.id === sessionId);
+    
+    if (session) {
+      setMessages(session.messages);
+      setCurrentSessionId(session.id);
+    }
+  };
+  
+  // Function to delete a specific chat session
+  const deleteChatSession = (sessionId) => {
+    const history = getChatHistory();
+    const updatedHistory = history.filter(s => s.id !== sessionId);
+    saveChatHistory(updatedHistory);
+    
+    // If we're deleting the current session, clear the chat
+    if (sessionId === currentSessionId) {
+      setMessages([]);
+      const newSessionId = generateSessionId();
+      setCurrentSessionId(newSessionId);
+      
+      // Initialize with welcome message for new session
+      const welcomeOptions = welcomeMessages[currentLanguage];
+      const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+      const welcomeMessage = {
+        type: 'bot',
+        content: randomWelcome.greeting,
+        timestamp: new Date().toISOString(),
+        isWelcome: true,
+        welcomeData: randomWelcome
+      };
+      const newMessages = [welcomeMessage];
+      setMessages(newMessages);
+      
+      // Save the new session
+      const newSession = {
+        id: newSessionId,
+        messages: newMessages,
+        timestamp: new Date().toISOString(),
+        title: generateSessionTitle(newMessages)
+      };
+      
+      const updatedHistoryWithNew = [...getChatHistory(), newSession];
+      saveChatHistory(updatedHistoryWithNew);
+    }
+  };
+  
+  // Function to clear all chat history
+  const clearAllChatHistory = () => {
+    localStorage.removeItem(CHAT_HISTORY_KEY);
+    setMessages([]);
+    const newSessionId = generateSessionId();
+    setCurrentSessionId(newSessionId);
+    
+    // Initialize with welcome message for new session
+    const welcomeOptions = welcomeMessages[currentLanguage];
+    const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+    const welcomeMessage = {
+      type: 'bot',
+      content: randomWelcome.greeting,
+      timestamp: new Date().toISOString(),
+      isWelcome: true,
+      welcomeData: randomWelcome
+    };
+    const newMessages = [welcomeMessage];
+    setMessages(newMessages);
+    
+    // Save the new session
+    const newSession = {
+      id: newSessionId,
+      messages: newMessages,
+      timestamp: new Date().toISOString(),
+      title: generateSessionTitle(newMessages)
+    };
+    
+    saveChatHistory([newSession]);
+  };
 
   // Animation effects when opening
   useEffect(() => {
@@ -507,360 +710,424 @@ const Chatbot = ({ isOpen, onClose }) => {
            height: window.innerWidth <= 640 ? '100vh' : 'auto',
            maxHeight: window.innerWidth <= 640 ? '100vh' : '32rem'
          }}>
-      <div className={`bg-white shadow-2xl border border-gray-200 flex flex-col ${
-        window.innerWidth <= 640 ? 'h-full rounded-none' : 'rounded-lg max-h-[32rem]'
-      }`}>
-      {/* Header */}
-      <div className="bg-[#1e40af] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-sm sm:text-base">ZAX</span>
-          <span className="text-xs opacity-75">AI Tax Assistant</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Close Button */}
-          <button 
-            onClick={onClose} 
-            className="text-2xl sm:text-xl hover:text-amber-300 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      {/* FAQ Panel */}
-      {showFAQs && (
-        <div className="bg-gray-50 border-b border-gray-200 p-3 max-h-32 overflow-y-auto">
-          <h4 className="text-xs font-semibold text-gray-700 mb-2">Common Questions:</h4>
-          <div className="space-y-1">
-            {faqs.map((faq, index) => (
-              <button
-                key={index}
-                onClick={() => handleFAQClick(faq)}
-                className="block w-full text-left text-xs text-blue-600 hover:text-blue-800 hover:bg-white p-2 rounded transition-colors"
-              >
-                {currentLanguage === 'en' 
-                  ? faq.question_en 
-                  : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
-              </button>
-            ))}
+  <div className="relative w-full h-full">
+  {/* Main Chat Area - stays in original position */}
+  <div className={`bg-white shadow-2xl border border-gray-200 flex flex-col h-full max-h-[32rem] ${window.innerWidth <= 640 ? 'rounded-none' : 'rounded-lg'}`}>
+        {/* Header */}
+        <div className="bg-[#1e40af] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm sm:text-base">ZAX</span>
+            <span className="text-xs opacity-75">AI Tax Assistant</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Sidebar Toggle Button */}
+            <button 
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="text-xl hover:text-amber-300 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-600/10"
+              title="Chat History"
+            >
+              💬
+            </button>
+            {/* Close Button */}
+            <button 
+              onClick={onClose} 
+              className="text-2xl sm:text-xl hover:text-amber-300 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10"
+            >
+              ×
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-3 min-h-0">
-        {messages.map((message, index) => (
-          <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-lg p-3 ${
-              message.type === 'user' 
-                ? 'bg-[#1e40af] text-white' 
-                : message.type === 'system'
-                ? 'bg-yellow-100 text-yellow-800 text-center text-xs'
-                : message.isError
-                ? 'bg-red-100 text-red-800'
-                : 'bg-gray-100 text-gray-800'
-            }`}>
-              {message.isWelcome ? (
-                <div className={`space-y-2 transition-opacity duration-3000 ${
-                  welcomeVisible ? 'opacity-100' : 'opacity-0'
-                }`}>
-                  <p className="text-sm font-medium">{message.content}</p>
-                  <p className="text-sm">{message.welcomeData?.help || "I can help you with:"}</p>
-                  <ul className="text-xs space-y-1 ml-4">
-                    {(message.welcomeData?.features || []).map((feature, idx) => (
-                      <li key={idx}>• {feature}</li>
-                    ))}
-                  </ul>
-                  <p className="text-sm font-medium">{message.welcomeData?.question || "What can I help you with today?"}</p>
-                </div>
-              ) : (
-                <div className="prose max-w-none text-sm">
-                  {message.type === 'bot' && typingMessageId === message.id ? (
-                    <div className="whitespace-pre-wrap">
-                      <TypewriterText 
-                        text={message.content} 
-                        speed={5} 
-                        onComplete={() => setTypingMessageId(null)}
-                      />
-                    </div>
-                  ) : (
-                    formatBotResponse(message.content.replace(/their/g, 'our').replace(/they/g, 'we'), message)
-                  )}
-                  
-                  {/* Enhanced follow-up suggestions */}
-                  {message.suggestedFAQs && message.suggestedFAQs.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-gray-200">
-                      <p className="text-xs font-medium mb-2 text-gray-700">You might also want to know:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {message.suggestedFAQs.slice(0, 3).map((faq, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleFAQClick(faq)}
-                            className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition-colors border border-blue-200"
-                          >
-                            {currentLanguage === 'en' 
-                                ? faq.question_en 
-                                : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Dynamic follow-up suggestions from backend */}
-                  {typingMessageId !== message.id && message.followUpSuggestions && message.followUpSuggestions.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-gray-200">
-                      <p className="text-xs font-medium mb-2 text-gray-700">Need more help?</p>
-                      <div className="flex flex-wrap gap-2">
-                        {message.followUpSuggestions.map((suggestion, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setInputMessage(suggestion.question)}
-                            className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
-                          >
-                            {suggestion.question}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Add links to official ZRA resources if available */}
-                  {message.isZRARelated && !message.needsSupport && (
-                    <div className="mt-3 pt-2 border-t border-gray-200">
-                      <p className="text-xs font-medium mb-1 text-gray-700">Official Resources:</p>
-                      <div className="flex flex-wrap gap-2">
-                        <a 
-                          href="https://www.zra.org.zm" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                        >
-                          Our Website
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                        {message.content.toLowerCase().includes('vat') && (
-                          <a 
-                            href="https://www.zra.org.zm/indirect-taxes/vat" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                          >
-                            VAT Information
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        )}
-                        {message.content.toLowerCase().includes('paye') && (
-                          <a 
-                            href="https://www.zra.org.zm/direct-taxes/paye" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                          >
-                            PAYE Information
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        )}
-                        {message.content.toLowerCase().includes('custom') || message.content.toLowerCase().includes('import') || message.content.toLowerCase().includes('export') ? (
-                          <a 
-                            href="https://www.zra.org.zm/trade-facilitation" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                          >
-                            Customs Information
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                          </a>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Context-aware interactive elements for relevant processes */}
-                  {typingMessageId !== message.id && (
-                    <>
-                      {message.content.toLowerCase().includes('register') && 
-                       (message.content.toLowerCase().includes('vat') || 
-                        message.content.toLowerCase().includes('tax') ||
-                        message.content.toLowerCase().includes('business')) && (
-                        <div className="mt-3 pt-2 border-t border-gray-200">
-                          <p className="text-xs font-medium mb-2 text-gray-700">Next Steps:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {message.content.toLowerCase().includes('vat') && (
-                              <button
-                                onClick={() => setInputMessage("How do I register for VAT?")}
-                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
-                              >
-                                VAT Registration
-                              </button>
-                            )}
-                            {(message.content.toLowerCase().includes('business') || message.content.toLowerCase().includes('company')) && (
-                              <button
-                                onClick={() => setInputMessage("What documents do I need for business registration?")}
-                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
-                              >
-                                Business Docs
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {(message.content.toLowerCase().includes('file') || message.content.toLowerCase().includes('return')) && 
-                       (message.content.toLowerCase().includes('vat') || 
-                        message.content.toLowerCase().includes('paye') ||
-                        message.content.toLowerCase().includes('tax')) && (
-                        <div className="mt-3 pt-2 border-t border-gray-200">
-                          <p className="text-xs font-medium mb-2 text-gray-700">Need Help Filing?</p>
-                          <div className="flex flex-wrap gap-2">
-                            {message.content.toLowerCase().includes('vat') && (
-                              <button
-                                onClick={() => setInputMessage("How do I file my VAT return?")}
-                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
-                              >
-                                VAT Filing
-                              </button>
-                            )}
-                            {message.content.toLowerCase().includes('paye') && (
-                              <button
-                                onClick={() => setInputMessage("How do I file my PAYE return?")}
-                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
-                              >
-                                PAYE Filing
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+        {/* FAQ Panel */}
+        {showFAQs && (
+          <div className="bg-gray-50 border-b border-gray-200 p-3 max-h-32 overflow-y-auto">
+            <h4 className="text-xs font-semibold text-gray-700 mb-2">Common Questions:</h4>
+            <div className="space-y-1">
+              {faqs.map((faq, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleFAQClick(faq)}
+                  className="block w-full text-left text-xs text-blue-600 hover:text-blue-800 hover:bg-white p-2 rounded transition-colors"
+                >
+                  {currentLanguage === 'en' 
+                    ? faq.question_en 
+                    : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
+                </button>
+              ))}
             </div>
           </div>
-        ))}
-        
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg p-3">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+        )}
+
+        {/* In-chat sidebar overlay and panel: rendered between header/FAQ and messages */}
+        {showSidebar && (
+          <div className="absolute inset-0 flex items-start justify-end z-50">
+            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg" onClick={() => setShowSidebar(false)} />
+            <div
+              className="bg-white shadow-2xl border border-gray-200 overflow-hidden"
+              style={{ width: '80%', height: '90%', borderRadius: '12px', marginTop: '0.25rem', zIndex: 60 }}
+            >
+              <div className="p-3 border-b border-gray-200 flex justify-between items-center">
+                <h4 className="text-xs font-semibold text-gray-700">Chat History</h4>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      setMessages([]);
+                      const newSessionId = generateSessionId();
+                      setCurrentSessionId(newSessionId);
+                      const welcomeOptions = welcomeMessages[currentLanguage];
+                      const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+                      const welcomeMessage = {
+                        type: 'bot',
+                        content: randomWelcome.greeting,
+                        timestamp: new Date().toISOString(),
+                        isWelcome: true,
+                        welcomeData: randomWelcome
+                      };
+                      const newMessages = [welcomeMessage];
+                      setMessages(newMessages);
+                      const newSession = { id: newSessionId, messages: newMessages, timestamp: new Date().toISOString(), title: generateSessionTitle(newMessages) };
+                      const updatedHistory = [...getChatHistory(), newSession];
+                      saveChatHistory(updatedHistory);
+                      setShowSidebar(false);
+                    }}
+                    className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded transition-colors mr-1"
+                  >
+                    + New
+                  </button>
+                  <button onClick={clearAllChatHistory} className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded transition-colors">Clear All</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {getChatHistory().length > 0 ? (
+                  [...getChatHistory()].reverse().map(session => (
+                    <div key={session.id} className={`flex justify-between items-center text-xs p-2 rounded ${session.id === currentSessionId ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100 text-gray-700'}`}>
+                      <button onClick={() => { loadChatSession(session.id); setShowSidebar(false); }} className="flex-1 text-left truncate">{session.title}</button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteChatSession(session.id); }} className="ml-2 text-gray-500 hover:text-red-600">×</button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500 text-center py-2">No chat history yet</p>
+                )}
               </div>
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Input */}
-      <div className="p-3 border-t bg-gray-50 rounded-b-lg">
-        <div className="relative mb-2">
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-14 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
-            placeholder={currentLanguage === 'en' ? "Type your question..." : "Lembani mupusho wenu..."}
-            rows="1"
-            disabled={isLoading}
-          />
+        {/* Messages */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-3 min-h-0">
+          {messages.map((message, index) => (
+            <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-lg p-3 ${
+                message.type === 'user' 
+                  ? 'bg-[#1e40af] text-white' 
+                  : message.type === 'system'
+                  ? 'bg-yellow-100 text-yellow-800 text-center text-xs'
+                  : message.isError
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {message.isWelcome ? (
+                  <div className={`space-y-2 transition-opacity duration-3000 ${
+                    welcomeVisible ? 'opacity-100' : 'opacity-0'
+                  }`}>
+                    <p className="text-sm font-medium">{message.content}</p>
+                    <p className="text-sm">{message.welcomeData?.help || "I can help you with:"}</p>
+                    <ul className="text-xs space-y-1 ml-4">
+                      {(message.welcomeData?.features || []).map((feature, idx) => (
+                        <li key={idx}>• {feature}</li>
+                      ))}
+                    </ul>
+                    <p className="text-sm font-medium">{message.welcomeData?.question || "What can I help you with today?"}</p>
+                  </div>
+                ) : (
+                  <div className="prose max-w-none text-sm">
+                    {message.type === 'bot' && typingMessageId === message.id ? (
+                      <div className="whitespace-pre-wrap">
+                        <TypewriterText 
+                          text={message.content} 
+                          speed={5} 
+                          onComplete={() => setTypingMessageId(null)}
+                        />
+                      </div>
+                    ) : (
+                      formatBotResponse(message.content.replace(/their/g, 'our').replace(/they/g, 'we'), message)
+                    )}
+                    
+                    {/* Enhanced follow-up suggestions */}
+                    {message.suggestedFAQs && message.suggestedFAQs.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-gray-200">
+                        <p className="text-xs font-medium mb-2 text-gray-700">You might also want to know:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {message.suggestedFAQs.slice(0, 3).map((faq, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => handleFAQClick(faq)}
+                              className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition-colors border border-blue-200"
+                            >
+                              {currentLanguage === 'en' 
+                                  ? faq.question_en 
+                                  : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Dynamic follow-up suggestions from backend */}
+                    {typingMessageId !== message.id && message.followUpSuggestions && message.followUpSuggestions.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-gray-200">
+                        <p className="text-xs font-medium mb-2 text-gray-700">Need more help?</p>
+                        <div className="flex flex-wrap gap-2">
+                          {message.followUpSuggestions.map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setInputMessage(suggestion.question)}
+                              className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                            >
+                              {suggestion.question}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Add links to official ZRA resources if available */}
+                    {message.isZRARelated && !message.needsSupport && (
+                      <div className="mt-3 pt-2 border-t border-gray-200">
+                        <p className="text-xs font-medium mb-1 text-gray-700">Official Resources:</p>
+                        <div className="flex flex-wrap gap-2">
+                          <a 
+                            href="https://www.zra.org.zm" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          >
+                            Our Website
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                          {message.content.toLowerCase().includes('vat') && (
+                            <a 
+                              href="https://www.zra.org.zm/indirect-taxes/vat" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                            >
+                              VAT Information
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          )}
+                          {message.content.toLowerCase().includes('paye') && (
+                            <a 
+                              href="https://www.zra.org.zm/direct-taxes/paye" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                            >
+                              PAYE Information
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          )}
+                          {message.content.toLowerCase().includes('custom') || message.content.toLowerCase().includes('import') || message.content.toLowerCase().includes('export') ? (
+                            <a 
+                              href="https://www.zra.org.zm/trade-facilitation" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                            >
+                              Customs Information
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          ) : null}
+                          </div>
+                      </div>
+                    )}
+                    
+                    {/* Context-aware interactive elements for relevant processes */}
+                    {typingMessageId !== message.id && (
+                      <>
+                        {message.content.toLowerCase().includes('register') && 
+                         (message.content.toLowerCase().includes('vat') || 
+                          message.content.toLowerCase().includes('tax') ||
+                          message.content.toLowerCase().includes('business')) && (
+                          <div className="mt-3 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium mb-2 text-gray-700">Next Steps:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {message.content.toLowerCase().includes('vat') && (
+                                <button
+                                  onClick={() => setInputMessage("How do I register for VAT?")}
+                                  className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                                >
+                                  VAT Registration
+                                </button>
+                              )}
+                              {(message.content.toLowerCase().includes('business') || message.content.toLowerCase().includes('company')) && (
+                                <button
+                                  onClick={() => setInputMessage("What documents do I need for business registration?")}
+                                  className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                                >
+                                  Business Docs
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {(message.content.toLowerCase().includes('file') || message.content.toLowerCase().includes('return')) && 
+                         (message.content.toLowerCase().includes('vat') || 
+                          message.content.toLowerCase().includes('paye') ||
+                          message.content.toLowerCase().includes('tax')) && (
+                          <div className="mt-3 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium mb-2 text-gray-700">Need Help Filing?</p>
+                            <div className="flex flex-wrap gap-2">
+                              {message.content.toLowerCase().includes('vat') && (
+                                <button
+                                  onClick={() => setInputMessage("How do I file my VAT return?")}
+                                  className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                                >
+                                  VAT Filing
+                                </button>
+                              )}
+                              {message.content.toLowerCase().includes('paye') && (
+                                <button
+                                  onClick={() => setInputMessage("How do I file my PAYE return?")}
+                                  className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                                >
+                                  PAYE Filing
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
           
-          {/* Emoji Button */}
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="absolute right-10 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
-            title="Insert Emoji"
-          >
-            😊
-          </button>
-          
-          {/* File Upload Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
-            title="Upload file"
-          >
-            📎
-          </button>
-          
-          {/* Emoji Picker */}
-          {showEmojiPicker && (
-            <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-w-xs z-20">
-              <div className="grid grid-cols-8 gap-1">
-                {['😀', '😂', '😊', '😍', '🥰', '😎', '🤗', '🤔', 
-                  '👍', '👏', '🙌', '👌', '🙏', '🔥', '✨', '🎉',
-                  '💯', '✅', '❓', '❗', '❤️', '💖', '💙', '💕',
-                  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
-                  '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌',
-                  '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
-                  '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐',
-                  '😑', '😶', '😏', '😒', '🙄', '😬', '🤤', '😴'].map(emoji => (
-                  <button
-                    key={emoji}
-                    onClick={() => insertEmoji(emoji)}
-                    className="text-lg p-1 hover:bg-gray-100 rounded"
-                  >
-                    {emoji}
-                  </button>
-                ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 rounded-lg p-3">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
               </div>
             </div>
           )}
-          
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            multiple
-            className="hidden"
-            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.odt,.rtf"
-          />
+          <div ref={messagesEndRef} />
         </div>
-        
-        {/* Selected files preview */}
-        {selectedFiles.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            {selectedFiles.map((file, index) => (
-              <div key={index} className="flex items-center bg-blue-100 text-blue-800 rounded px-2 py-1 text-xs">
-                <span className="truncate max-w-[100px]">{file.name}</span>
-                <button 
-                  type="button" 
-                  onClick={() => removeFile(index)}
-                  className="ml-1 text-blue-600 hover:text-blue-900"
-                >
-                  ×
-                </button>
+
+        {/* Input */}
+        <div className="p-3 border-t bg-gray-50 rounded-b-lg">
+          <div className="relative mb-2">
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-14 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
+              placeholder={currentLanguage === 'en' ? "Type your question..." : "Lembani mupusho wenu..."}
+              rows="1"
+              disabled={isLoading}
+            />
+            
+            {/* Emoji Button */}
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="absolute right-10 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
+              title="Insert Emoji"
+            >
+              😊
+            </button>
+            
+            {/* File Upload Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded text-blue-400 hover:bg-blue-50 text-base"
+              title="Upload file"
+            >
+              📎
+            </button>
+            
+            {/* Emoji Picker */}
+            {showEmojiPicker && (
+              <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-w-xs z-20">
+                <div className="grid grid-cols-8 gap-1">
+                  {['😀', '😂', '😊', '😍', '🥰', '😎', '🤗', '🤔', 
+                    '👍', '👏', '🙌', '👌', '🙏', '🔥', '✨', '🎉',
+                    '💯', '✅', '❓', '❗', '❤️', '💖', '💙', '💕',
+                    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+                    '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌',
+                    '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
+                    '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐',
+                    '😑', '😶', '😏', '😒', '🙄', '😬', '🤤', '😴'].map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => insertEmoji(emoji)}
+                      className="text-lg p-1 hover:bg-gray-100 rounded"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              multiple
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.odt,.rtf"
+            />
           </div>
-        )}
-        
-        <div className="flex justify-between items-center">
-          <div className="text-xs text-gray-500">
-            {uploadingFiles ? 'Uploading files...' : `${selectedFiles.length} file(s) selected`}
+          
+          {/* Selected files preview */}
+          {selectedFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {selectedFiles.map((file, index) => (
+                <div key={index} className="flex items-center bg-blue-100 text-blue-800 rounded px-2 py-1 text-xs">
+                  <span className="truncate max-w-[100px]">{file.name}</span>
+                  <button 
+                    type="button" 
+                    onClick={() => removeFile(index)}
+                    className="ml-1 text-blue-600 hover:text-blue-900"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-gray-500">
+              {uploadingFiles ? 'Uploading files...' : `${selectedFiles.length} file(s) selected`}
+            </div>
+            <button 
+              onClick={sendMessage}
+              disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || uploadingFiles}
+              className="bg-[#1e40af] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            >
+              {isLoading || uploadingFiles ? '...' : (currentLanguage === 'en' ? 'Send' : 'Tuma')}
+            </button>
           </div>
-          <button 
-            onClick={sendMessage}
-            disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || uploadingFiles}
-            className="bg-[#1e40af] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            {isLoading || uploadingFiles ? '...' : (currentLanguage === 'en' ? 'Send' : 'Tuma')}
-          </button>
+          <p className="text-xs text-gray-500 mt-2">
+            {welcome.note}
+          </p>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          {welcome.note}
-        </p>
       </div>
       </div>
     </div>
