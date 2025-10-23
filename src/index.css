@@ -26,11 +26,20 @@
 @media (max-width: 640px) {
   .chatbox-container {
     width: 100vw !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 100dvh !important;
     bottom: 0 !important;
     right: 0 !important;
     left: 0 !important;
+    top: 0 !important;
+  }
+  
+  /* Ensure the main chat area fills the container */
+  .chatbox-container .bg-white {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 }
 
@@ -38,7 +47,9 @@
   .chatbox-container {
     /* Ensure full coverage on very small screens */
     width: 100vw !important;
+    height: 100dvh !important;
     margin: 0 !important;
     padding: 0 !important;
+    top: 0 !important;
   }
 }

@@ -712,7 +712,7 @@ const Chatbot = ({ isOpen, onClose }) => {
          }}>
   <div className="relative w-full h-full">
   {/* Main Chat Area - stays in original position */}
-  <div className={`bg-white shadow-2xl border border-gray-200 flex flex-col h-full max-h-[32rem] ${window.innerWidth <= 640 ? 'rounded-none' : 'rounded-lg'}`}>
+  <div className={`bg-white shadow-2xl border border-gray-200 flex flex-col h-full ${window.innerWidth <= 640 ? 'h-full max-h-[100dvh] min-h-[100dvh] rounded-none' : 'max-h-[32rem] rounded-lg'}`}>
         {/* Header */}
         <div className="bg-[#1e40af] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -814,7 +814,7 @@ const Chatbot = ({ isOpen, onClose }) => {
         )}
 
         {/* Messages */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-3 min-h-0">
+        <div className={`flex-1 p-4 overflow-y-auto space-y-3 min-h-0 ${window.innerWidth <= 640 ? 'flex-grow' : ''}`}>
           {messages.map((message, index) => (
             <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-lg p-3 ${
