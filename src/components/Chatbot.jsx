@@ -100,7 +100,6 @@ const Chatbot = ({ isOpen, onClose }) => {
   const messagesEndRef = useRef(null)
 
 
-
   // File upload functions
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files)
@@ -123,7 +122,7 @@ const Chatbot = ({ isOpen, onClose }) => {
   }
 
   const uploadFiles = async (session_id) => {
-    if (selectedFiles.length === 0) return []
+    if (selectedFiles.length === 0 || uploadingFiles) return []  // Prevent duplicate uploads
     
     const formData = new FormData()
     selectedFiles.forEach(file => {
@@ -152,11 +151,8 @@ const Chatbot = ({ isOpen, onClose }) => {
           files: data.files
         }
         
-        const updatedMessages = [...messages, fileUploadMessage];
-        setMessages(updatedMessages);
+        setMessages(prev => [...prev, fileUploadMessage]);
         setSelectedFiles([]) // Clear selected files after successful upload
-        
-
         
         return data.files
       } else {
@@ -171,8 +167,7 @@ const Chatbot = ({ isOpen, onClose }) => {
         timestamp: new Date().toISOString(),
         isError: true
       }
-      const updatedMessages = [...messages, errorMessage];
-      setMessages(updatedMessages);
+      setMessages(prev => [...prev, errorMessage]);
       
       return []
     } finally {
@@ -204,7 +199,7 @@ const Chatbot = ({ isOpen, onClose }) => {
         "PAYE and employee taxes",
         "Import/export duties",
         "Tax payment methods",
-        "ZRA online services"
+        "ZRA e-services"
       ],
       question: "How may I assist you today?",
       note: "For your security, please avoid sharing personal details like NRC numbers."
@@ -238,6 +233,7 @@ const Chatbot = ({ isOpen, onClose }) => {
   const initializeChat = useRef(null)
 
   initializeChat.current = () => {
+    // Only show welcome message if we have no messages AND it's a new session
     if (messages.length === 0) {
       const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]
       const welcomeMessage = {
@@ -272,6 +268,25 @@ const Chatbot = ({ isOpen, onClose }) => {
         
         saveChatHistory(history);
       }
+    } else if (messages.length > 0 && currentSessionId) {
+      // If we have existing messages, update the session with current messages
+      const session = {
+        id: currentSessionId,
+        messages: messages,
+        timestamp: new Date().toISOString(),
+        title: generateSessionTitle(messages)
+      };
+      
+      const history = getChatHistory();
+      const existingSessionIndex = history.findIndex(s => s.id === currentSessionId);
+      
+      if (existingSessionIndex !== -1) {
+        history[existingSessionIndex] = session;
+      } else {
+        history.push(session);
+      }
+      
+      saveChatHistory(history);
     }
   }
 
@@ -324,8 +339,8 @@ const Chatbot = ({ isOpen, onClose }) => {
     }
   }, [messages, currentSessionId])
 
-  
 
+  
   const sendMessage = async () => {
     if ((!inputMessage.trim() && selectedFiles.length === 0) || isLoading) return
 
@@ -337,7 +352,6 @@ const Chatbot = ({ isOpen, onClose }) => {
 
     // Upload files first if any
     if (selectedFiles.length > 0) {
-      // Use the current session ID for file uploads to ensure they're associated with the right session
       await uploadFiles(currentSessionId || sessionId || 'anonymous')
     }
 
@@ -924,14 +938,13 @@ const Chatbot = ({ isOpen, onClose }) => {
           // We'll just reset the flag but allow them to request staff again
         }
       }
-      // Add a specific check for non-200 responses to handle backend errors gracefully
+      // Handle non-200 responses gracefully
     } catch (error) {
       // Only log errors in development mode, and handle network errors gracefully
       if (import.meta.env.MODE === 'development' && !error.message.includes('Failed to fetch')) {
         console.error('Error checking staff connection status:', error);
       }
       // For network errors (like 502s), we silently handle them to prevent console spam
-      // but could optionally update UI to show connection status
     }
   };
   
