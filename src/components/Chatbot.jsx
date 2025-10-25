@@ -926,12 +926,12 @@ const Chatbot = ({ isOpen, onClose }) => {
       }
       // Add a specific check for non-200 responses to handle backend errors gracefully
     } catch (error) {
-      // Only log errors in development mode, and only if it's not a network error from backend being down
-      if (import.meta.env.MODE === 'development' && error.name !== 'TypeError') {
+      // Only log errors in development mode, and handle network errors gracefully
+      if (import.meta.env.MODE === 'development' && !error.message.includes('Failed to fetch')) {
         console.error('Error checking staff connection status:', error);
       }
-      // In production or for network errors, silently handle connection issues
-      // This prevents console spam when backend is not running during development
+      // For network errors (like 502s), we silently handle them to prevent console spam
+      // but could optionally update UI to show connection status
     }
   };
   
@@ -1037,12 +1037,11 @@ const Chatbot = ({ isOpen, onClose }) => {
       }
       // Handle non-200 responses gracefully
     } catch (error) {
-      // Only log errors in development mode, and only if it's not a network error from backend being down
-      if (import.meta.env.MODE === 'development' && error.name !== 'TypeError') {
+      // Only log errors in development mode, and handle network errors gracefully
+      if (import.meta.env.MODE === 'development' && !error.message.includes('Failed to fetch')) {
         console.error('Error fetching agent messages:', error);
       }
-      // In production or for network errors, silently handle connection issues
-      // This prevents console spam when backend is not running during development
+      // For network errors (like 502s), we silently handle them to prevent console spam
     } finally {
       // Reset the flag to allow next execution
       fetchAgentMessagesRef.current = false;
