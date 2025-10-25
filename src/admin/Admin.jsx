@@ -27,8 +27,19 @@ const Admin = () => {
   const [chatHistory, setChatHistory] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [refreshIntervalId, setRefreshIntervalId] = useState(null);
+  const [notification, setNotification] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true); // For responsive sidebar toggle
   const messagesEndRef = useRef(null);
 
+  // Auto-hide notification after 3 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
 
   // Scroll to bottom of messages
@@ -85,8 +96,8 @@ const Admin = () => {
     // Initial fetch
     fetchActiveSessions();
 
-    // Set up interval to fetch every 4 seconds for better responsiveness
-    const intervalId = setInterval(fetchActiveSessions, 4000);
+    // Set up interval to fetch every 2 seconds for better responsiveness
+    const intervalId = setInterval(fetchActiveSessions, 2000);
     setRefreshIntervalId(intervalId);
   };
 
@@ -136,13 +147,13 @@ const Admin = () => {
         fetchChatHistory(session_id);
       } else {
         const errorData = await response.json();
-        alert(`Error connecting to session: ${errorData.error}`);
+        setNotification({ type: 'error', message: `Error connecting to session: ${errorData.error}` });
         // Revert to no selection on error
         setSelectedSession(null);
       }
     } catch (error) {
       console.error('Error connecting to session:', error);
-      alert('Error connecting to session');
+      setNotification({ type: 'error', message: 'Error connecting to session' });
       // Revert to no selection on error  
       setSelectedSession(null);
     }
@@ -184,9 +195,13 @@ const Admin = () => {
         setChatHistory(allMessages);
       } else {
         console.error('Failed to fetch chat history');
+        // Don't show error for every fetch, only significant ones
       }
     } catch (error) {
-      console.error('Error fetching chat history:', error);
+      // Only show error if network issue, not for normal 404s or similar
+      if (error.name !== 'TypeError' || error.message.includes('fetch')) {
+        console.error('Error fetching chat history:', error);
+      }
     }
   };
 
@@ -196,11 +211,10 @@ const Admin = () => {
       // Fetch initial chat history
       fetchChatHistory(selectedSession.session_id);
       
-      // Set up polling for new messages every 3 seconds for better responsiveness
-      // Since we reduced other polling, we can afford to poll chat history more frequently
+      // Set up polling for new messages every 1.5 seconds for faster updates
       const intervalId = setInterval(() => {
         fetchChatHistory(selectedSession.session_id);
-      }, 3000);
+      }, 1500);
       
       return () => clearInterval(intervalId);
     }
@@ -226,13 +240,19 @@ const Admin = () => {
         // Fetch updated chat history instead of manually adding to avoid duplication
         fetchChatHistory(selectedSession.session_id);
         setNewMessage('');
+        
+        // Also refresh active sessions to reflect latest activity
+        // This helps with faster updates
+        setTimeout(() => {
+          fetchActiveSessions();
+        }, 1000); // Small delay to allow backend to process message
       } else {
         const errorData = await response.json();
-        alert(`Error sending message: ${errorData.error}`);
+        setNotification({ type: 'error', message: `Error sending message: ${errorData.error}` });
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Error sending message');
+      setNotification({ type: 'error', message: 'Error sending message' });
     }
   };
 
@@ -253,14 +273,21 @@ const Admin = () => {
         const data = await response.json();
         setSelectedSession(null);
         setChatHistory([]);
-        alert('Session ended successfully');
+        // Don't use alert, instead update UI to reflect session ended
+        // Show a temporary notification
+        setNotification({ type: 'success', message: 'Session ended successfully' });
+        
+        // Force refresh of active sessions immediately after ending a session
+        setTimeout(() => {
+          fetchActiveSessions();
+        }, 500); // Small delay to ensure backend has processed the request
       } else {
         const errorData = await response.json();
-        alert(`Error ending session: ${errorData.error}`);
+        setNotification({ type: 'error', message: `Error ending session: ${errorData.error}` });
       }
     } catch (error) {
       console.error('Error ending session:', error);
-      alert('Error ending session');
+      setNotification({ type: 'error', message: 'Error ending session' });
     }
   };
 
@@ -331,12 +358,37 @@ const Admin = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar - Active Sessions */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      {/* Notification Toast */}
+      {notification && (
+        <div 
+          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-md shadow-lg transition-opacity duration-300 ${
+            notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+          }`}
+        >
+          {notification.message}
+        </div>
+      )}
+      {/* Responsive sidebar - Hidden on small screens when showSidebar is false */}
+      <div className={`${showSidebar ? 'w-80' : 'w-0 lg:w-80'} ${showSidebar ? 'ml-0' : '-ml-80 lg:ml-0'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 overflow-hidden`}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold text-gray-800">Active Chat Sessions</h2>
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 lg:hidden">
+              {/* Hamburger menu button for mobile */}
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="text-gray-600 hover:text-gray-900 focus:outline-none"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {showSidebar ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+            </div>
+            <div className="hidden lg:flex space-x-2">
               <button
                 onClick={fetchActiveSessions}
                 className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded"
@@ -367,7 +419,13 @@ const Admin = () => {
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:bg-gray-50'
                 }`}
-                onClick={() => connectToSession(session.session_id)}
+                onClick={() => {
+                  connectToSession(session.session_id);
+                  // On mobile, close sidebar after selecting a session
+                  if (window.innerWidth < 1024) {
+                    setShowSidebar(false);
+                  }
+                }}
               >
                 <div className="flex justify-between">
                   <span className="font-medium text-sm truncate">{session.session_id}</span>
@@ -402,8 +460,22 @@ const Admin = () => {
         </div>
       </div>
       
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Chat Area - Full width on mobile when sidebar is hidden */}
+      <div className={`${showSidebar ? 'lg:flex-1' : 'flex-1'} flex flex-col ${!showSidebar ? 'absolute inset-0 z-10 bg-white' : ''}`}>
+        {/* Toggle sidebar button for mobile */}
+        {!showSidebar && (
+          <div className="p-3 bg-white border-b lg:hidden">
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="flex items-center text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded"
+            >
+              <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              Sessions
+            </button>
+          </div>
+        )}
         {selectedSession ? (
           <>
             {/* Chat Header */}
@@ -478,10 +550,21 @@ const Admin = () => {
                             </div>
                           )}
                           
-                          {/* File download link */}
-                          <div className="mt-2">
+                          {/* File download link and preview */}
+                          <div className="mt-2 space-y-2">
+                            {/* Image preview */}
+                            {message.file_data.file_type === 'image' && (
+                              <div className="mt-2 border rounded-lg overflow-hidden">
+                                <img 
+                                  src={message.file_data.full_media_url || `${API_ENDPOINTS.CHAT.replace('/chatbot/chat/', '').replace('/api', '')}/media/${message.file_data.file_path}`} 
+                                  alt={message.file_data.original_filename}
+                                  className="max-w-full max-h-64 object-contain"
+                                />
+                              </div>
+                            )}
+                            
                             <a 
-                              href={`/media/${message.file_data.file_path}`}
+                              href={message.file_data.full_media_url || `${API_ENDPOINTS.CHAT.replace('/chatbot/chat/', '').replace('/api', '')}/media/${message.file_data.file_path}`} 
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center text-blue-600 hover:text-blue-800 text-xs"

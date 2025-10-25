@@ -156,6 +156,8 @@ const Chatbot = ({ isOpen, onClose }) => {
         setMessages(updatedMessages);
         setSelectedFiles([]) // Clear selected files after successful upload
         
+
+        
         return data.files
       } else {
         console.error('File upload failed:', response.statusText)
@@ -335,7 +337,8 @@ const Chatbot = ({ isOpen, onClose }) => {
 
     // Upload files first if any
     if (selectedFiles.length > 0) {
-      await uploadFiles(sessionId || 'anonymous')
+      // Use the current session ID for file uploads to ensure they're associated with the right session
+      await uploadFiles(currentSessionId || sessionId || 'anonymous')
     }
 
     // If there's text content or files were uploaded
@@ -565,7 +568,7 @@ const Chatbot = ({ isOpen, onClose }) => {
     } finally {
       setIsConnectingToStaff(false);
     }
-
+  };
 
   // Function to handle rating after chat with agent
   const handleRating = (rating) => {
@@ -921,8 +924,14 @@ const Chatbot = ({ isOpen, onClose }) => {
           // We'll just reset the flag but allow them to request staff again
         }
       }
+      // Add a specific check for non-200 responses to handle backend errors gracefully
     } catch (error) {
-      console.error('Error checking staff connection status:', error);
+      // Only log errors in development mode, and only if it's not a network error from backend being down
+      if (import.meta.env.MODE === 'development' && error.name !== 'TypeError') {
+        console.error('Error checking staff connection status:', error);
+      }
+      // In production or for network errors, silently handle connection issues
+      // This prevents console spam when backend is not running during development
     }
   };
   
@@ -937,8 +946,8 @@ const Chatbot = ({ isOpen, onClose }) => {
   const fetchAgentMessages = async () => {
     const now = Date.now();
     
-    // Debounce: prevent calls more frequent than 3 seconds
-    if (now - lastFetchTimeRef.current < 3000) {
+    // Debounce: prevent calls more frequent than 1.5 seconds for faster updates
+    if (now - lastFetchTimeRef.current < 1500) {
       return;
     }
     
@@ -958,6 +967,7 @@ const Chatbot = ({ isOpen, onClose }) => {
       if (response.ok) {
         const data = await response.json();
         
+        // Process staff messages
         // Use more robust duplicate detection
         const existingMessagesSet = new Set(messages.map(msg => 
           `${msg.sender_type}-${msg.content}-${new Date(msg.timestamp).getTime()}`
@@ -1003,9 +1013,36 @@ const Chatbot = ({ isOpen, onClose }) => {
             lastMessagesRef.current = lastMessagesRef.current.slice(-50);
           }
         }
+        
+        // Process associated files for the session
+        if (data.files && data.files.length > 0) {
+          // Add file information as special messages for staff to see
+          data.files.forEach(file => {
+            // Check if this file was already added to avoid duplicates
+            if (!messages.some(msg => msg.isFilePreview && msg.fileId === file.id)) {
+              const fileMessage = {
+                id: `file-${file.id}-${Date.now()}`,
+                type: 'system',
+                content: `File uploaded by user: ${file.original_filename} (${Math.round(file.file_size / 1024)} KB)`,
+                timestamp: new Date().toISOString(),
+                isFilePreview: true,
+                fileId: file.id,
+                fileData: file,
+                sender_type: 'system'
+              };
+              setMessages(prev => [...prev, fileMessage]);
+            }
+          });
+        }
       }
+      // Handle non-200 responses gracefully
     } catch (error) {
-      console.error('Error fetching agent messages:', error);
+      // Only log errors in development mode, and only if it's not a network error from backend being down
+      if (import.meta.env.MODE === 'development' && error.name !== 'TypeError') {
+        console.error('Error fetching agent messages:', error);
+      }
+      // In production or for network errors, silently handle connection issues
+      // This prevents console spam when backend is not running during development
     } finally {
       // Reset the flag to allow next execution
       fetchAgentMessagesRef.current = false;
@@ -1022,16 +1059,16 @@ const Chatbot = ({ isOpen, onClose }) => {
       // Check connection status immediately
       checkStaffConnectionStatus();
       
-      // Set up status checking interval (every 10 seconds)
-      statusIntervalId = setInterval(checkStaffConnectionStatus, 10000);
+      // Set up status checking interval (every 3 seconds for faster updates)
+      statusIntervalId = setInterval(checkStaffConnectionStatus, 3000);
       
       // Set up message fetching interval only when connected to staff
       if (isConnectedToStaff) {
         // Fetch agent messages immediately when connection starts
         fetchAgentMessages();
         
-        // Then check for new messages every 8 seconds
-        messageIntervalId = setInterval(fetchAgentMessages, 8000);
+        // Then check for new messages every 2 seconds for faster updates
+        messageIntervalId = setInterval(fetchAgentMessages, 2000);
       }
     }
     
@@ -1313,6 +1350,59 @@ const Chatbot = ({ isOpen, onClose }) => {
                       </div>
                     ) : message.type === 'bot' ? (
                       formatBotResponse(message.content.replace(/their/g, 'our').replace(/they/g, 'we'), message)
+                    ) : message.isFilePreview ? (
+                      // File preview for staff
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 bg-blue-100 rounded-full">
+                            {message.fileData?.file_type === 'image' ? (
+                              <span className="text-xl">🖼️</span>
+                            ) : (
+                              <span className="text-xl">📄</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">{message.fileData?.original_filename}</p>
+                            <p className="text-xs text-gray-600">
+                              {Math.round(message.fileData?.file_size / 1024)} KB • {message.fileData?.file_type?.toUpperCase()}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* File preview for images */}
+                        {message.fileData?.file_type === 'image' && (
+                          <div className="mt-2 border rounded-lg overflow-hidden">
+                            <img 
+                              src={message.fileData?.full_media_url || `${API_BASE_URL.replace('/api', '')}/media/${message.fileData?.file_path}`} 
+                              alt={message.fileData?.original_filename}
+                              className="max-w-full max-h-48 object-contain"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* For documents, show processed content if available */}
+                        {message.fileData?.file_type === 'document' && message.fileData?.processed_content && (
+                          <div className="mt-2 p-2 bg-gray-50 border rounded text-xs max-h-32 overflow-y-auto">
+                            <p className="font-medium mb-1">Processed Content:</p>
+                            <p>{message.fileData.processed_content.substring(0, 200)}{message.fileData.processed_content.length > 200 ? '...' : ''}</p>
+                          </div>
+                        )}
+                        
+                        {/* Download link */}
+                        <div className="mt-2">
+                          <a 
+                            href={message.fileData?.full_media_url || `${API_BASE_URL.replace('/api', '')}/media/${message.fileData?.file_path}`} 
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                          >
+                            <span>📥 Download file</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        </div>
+                      </div>
                     ) : (
                       <div className="whitespace-pre-wrap">
                         {message.content.replace(/their/g, 'our').replace(/they/g, 'we')}
