@@ -80,7 +80,7 @@ const Chatbot = ({ isOpen, onClose }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
-  const [currentLanguage, _setCurrentLanguage] = useState('en') // Kept for welcome messages but will default to English only
+  const currentLanguage = 'en'; // Fixed to English only
   const [faqs, _setFaqs] = useState([])
   const [showFAQs, setShowFAQs] = useState(false)
   const [_chatVisible, setChatVisible] = useState(false)
@@ -91,15 +91,15 @@ const Chatbot = ({ isOpen, onClose }) => {
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState(null)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [isConnectingToStaff, setIsConnectingToStaff] = useState(false)
+  const [isConnectedToStaff, setIsConnectedToStaff] = useState(false)
+  const [staffConnectionStatus, setStaffConnectionStatus] = useState('not_connected') // not_connected, pending, connected
+  const [showRating, setShowRating] = useState(false)
+  const [isRatingSubmitted, setIsRatingSubmitted] = useState(false)
   const fileInputRef = useRef(null)
   const messagesEndRef = useRef(null)
 
-  const _languageNames = {
-    en: 'English',
-    bem: 'Bemba (Ichibemba)',
-    loz: 'Lozi (Silozi)',
-    nya: 'Nyanja (Chinyanja)'
-  }
+
 
   // File upload functions
   const handleFileChange = (e) => {
@@ -178,142 +178,50 @@ const Chatbot = ({ isOpen, onClose }) => {
     }
   }
 
-  const welcomeMessages = {
-    en: [
-      {
-        greeting: "Hello! I'm ZAX, your AI assistant for the Zambia Revenue Authority (ZRA).",
-        help: "I can help you with:",
-        features: [
-          "Tax registration and procedures",
-          "VAT information and filing",
-          "PAYE calculations and payments",
-          "Customs and duties",
-          "Tax compliance certificates",
-          "General ZRA services"
-        ],
-        question: "What can I help you with today?",
-        note: "Please do not share sensitive personal information such as NRCs or passwords."
-      },
-      {
-        greeting: "Welcome to ZRA! I'm ZAX, here to assist you with all your tax-related questions.",
-        help: "I'm here to help with:",
-        features: [
-          "Business tax registration",
-          "VAT returns and compliance",
-          "PAYE and employee taxes",
-          "Import/export duties",
-          "Tax payment methods",
-          "ZRA online services"
-        ],
-        question: "How may I assist you today?",
-        note: "For your security, please avoid sharing personal details like NRC numbers."
-      },
-      {
-        greeting: "Good day! I'm ZAX, your dedicated ZRA tax assistant.",
-        help: "I can provide guidance on:",
-        features: [
-          "Tax obligations and deadlines",
-          "VAT registration requirements",
-          "PAYE calculations",
-          "Customs procedures",
-          "Tax clearance certificates",
-          "ZRA e-services"
-        ],
-        question: "What ZRA service can I help you with?",
-        note: "Please keep your personal information secure - avoid sharing NRCs or passwords."
-      }
-    ],
-    bem: [
-      {
-        greeting: "Mwashibukeni! Ndi ZAX, umutumishi wenu wa AI wa Zambia Revenue Authority (ZRA).",
-        help: "Nkwangula:",
-        features: [
-          "Ukwishiba pa misolo ne milawo",
-          "Amakani ya VAT ne ukutuma",
-          "PAYE ne kulipila",
-          "Customs ne duties",
-          "Tax compliance certificates",
-          "Ama service ya ZRA"
-        ],
-        question: "Nshani nkwanguleni lelo?",
-        note: "Mutabaleke ukugabana amakani ya mwine nga NRC nangu ma password."
-      },
-      {
-        greeting: "Muli bwanji! Ndi ZAX, ndi pano ukubafwafya pa ZRA ne misolo.",
-        help: "Nkwangula pa:",
-        features: [
-          "Ukwishiba ama business pa misolo",
-          "VAT returns ne compliance",
-          "PAYE ne misolo ya basebeshi",
-          "Import/export duties",
-          "Injila sha kulipila misolo",
-          "ZRA online services"
-        ],
-        question: "Nshita bwanji nkwanguleni lelo?",
-        note: "Ku security yenu, mutabaleke ukugabana amakani nga NRC."
-      }
-    ],
-    loz: [
-      {
-        greeting: "Dumelang! Ke ZAX, motlatsi wa lona wa AI wa Zambia Revenue Authority (ZRA).",
-        help: "Nka le thusa ka:",
-        features: [
-          "Ho ingisa tax le ditsamaiso",
-          "Tlhahisoleseding ya VAT le ho romela",
-          "PAYE le ditefo",
-          "Customs le duties",
-          "Tax compliance certificates",
-          "Ditshebeletso tsa ZRA"
-        ],
-        question: "Ke eng eo nka le thusang ka yona kajeno?",
-        note: "Se ke wa arolelana tlhahisoleseding ya botho jwa hao e kang NRC kapa di-password."
-      },
-      {
-        greeting: "Lumela! Ke ZAX, ke teng ho le thusa ka dipotso tsa tax tsa ZRA.",
-        help: "Ke ka le thusa ka:",
-        features: [
-          "Ho ingisa dikgwebo tax-eng",
-          "VAT returns le ho latela melao",
-          "PAYE le tax ya basebetsi",
-          "Dikgato tsa customs",
-          "Mekgwa ya ho lefela tax",
-          "Ditshebeletso tsa ZRA online"
-        ],
-        question: "Nka le thusa jwang kajeno?",
-        note: "Bakeng sa tshireletso ya lona, se ke wa arolelana dintlha tsa botho."
-      }
-    ],
-    nya: [
-      {
-        greeting: "Moni! Ndine ZAX, wothandizira wanu wa AI wa Zambia Revenue Authority (ZRA).",
-        help: "Ndimatha kukuthandizani ndi:",
-        features: [
-          "Kulembetsa misonkho ndi njira",
-          "Zambiri za VAT ndi kutumiza",
-          "PAYE ndi malipiro",
-          "Customs ndi duties",
-          "Tax compliance certificates",
-          "Ntchito za ZRA"
-        ],
-        question: "Kodi ndingakuthandizeni ndi chani lero?",
-        note: "Musagawane zambiri za chinsinsi monga NRC kapena ma password."
-      },
-      {
-        greeting: "Muli bwanji! Ndine ZAX, ndili pano kukuthandizani ndi mafunso onse a ZRA.",
-        help: "Ndimatha kukuthandizani pa:",
-        features: [
-          "Kulembetsa mabizinesi pa misonkho",
-          "VAT returns ndi kutsatira malamulo",
-          "PAYE ndi misonkho ya antchito",
-          "Njira za kulipira misonkho",
-          "Ntchito za ZRA pa intaneti",
-          "Ma certificate a misonkho"
-        ],
-        question: "Ndingakuthandizeni bwanji lero?",
-        note: "Chifukwa cha chitetezo chanu, musagawane zambiri za chinsinsi."
-      }
-    ]
-  }
+  const welcomeMessages = [
+    {
+      greeting: "Hello! I'm ZAX, your AI assistant for the Zambia Revenue Authority (ZRA).",
+      help: "I can help you with:",
+      features: [
+        "Tax registration and procedures",
+        "VAT information and filing",
+        "PAYE calculations and payments",
+        "Customs and duties",
+        "Tax compliance certificates",
+        "General ZRA services"
+      ],
+      question: "What can I help you with today?",
+      note: "Please do not share sensitive personal information such as NRCs or passwords."
+    },
+    {
+      greeting: "Welcome to ZRA! I'm ZAX, here to assist you with all your tax-related questions.",
+      help: "I'm here to help with:",
+      features: [
+        "Business tax registration",
+        "VAT returns and compliance",
+        "PAYE and employee taxes",
+        "Import/export duties",
+        "Tax payment methods",
+        "ZRA online services"
+      ],
+      question: "How may I assist you today?",
+      note: "For your security, please avoid sharing personal details like NRC numbers."
+    },
+    {
+      greeting: "Good day! I'm ZAX, your dedicated ZRA tax assistant.",
+      help: "I can provide guidance on:",
+      features: [
+        "Tax obligations and deadlines",
+        "VAT registration requirements",
+        "PAYE calculations",
+        "Customs procedures",
+        "Tax clearance certificates",
+        "ZRA e-services"
+      ],
+      question: "What ZRA service can I help you with?",
+      note: "Please keep your personal information secure - avoid sharing NRCs or passwords."
+    }
+  ]
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -329,8 +237,7 @@ const Chatbot = ({ isOpen, onClose }) => {
 
   initializeChat.current = () => {
     if (messages.length === 0) {
-      const welcomeOptions = welcomeMessages[currentLanguage]
-      const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)]
+      const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]
       const welcomeMessage = {
         type: 'bot',
         content: randomWelcome.greeting,
@@ -431,88 +338,255 @@ const Chatbot = ({ isOpen, onClose }) => {
       await uploadFiles(sessionId || 'anonymous')
     }
 
-    let updatedMessages = [...messages]; // Use current messages state
-
-    // Only send message if there's text content
-    if (inputMessage.trim()) {
-      const userMessage = {
-        type: 'user',
-        content: inputMessage.trim(),
-        timestamp: new Date().toISOString()
-      }
-
-      updatedMessages = [...updatedMessages, userMessage];
-      setMessages(updatedMessages);
-      setInputMessage('');
-    }
-
-    // If there's text content or files were uploaded, trigger the AI
+    // If there's text content or files were uploaded
     if (inputMessage.trim() || selectedFiles.length > 0) {
       setIsLoading(true)
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/chatbot/chat/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: inputMessage.trim() || `I've uploaded ${selectedFiles.length} file(s) for reference. Please analyze them and respond accordingly.`,
-            session_id: sessionId || 'anonymous'
-          })
-        })
-
-        if (response.ok) {
-          const data = await response.json()
+      // If connected to staff, send the message to staff instead of the bot
+      if (isConnectedToStaff && currentSessionId) {
+        try {
+          // Add user message to chat immediately for better UX
+          if (inputMessage.trim()) {
+            const userMessage = {
+              type: 'user',
+              content: inputMessage.trim(),
+              timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, userMessage]);
+          }
           
-          // Update session ID if new
-          if (data.session_id && !sessionId) {
-            setSessionId(data.session_id)
+          // Send the text message separately from files
+          // Files are already uploaded and associated with the session
+          let messageToSend = inputMessage.trim();
+          if (!messageToSend && selectedFiles.length > 0) {
+            messageToSend = `I've uploaded ${selectedFiles.length} file(s) for your review.`;
           }
 
-          const botMessage = {
-            type: 'bot',
-            content: data.response,
-            timestamp: new Date().toISOString(),
-            isZRARelated: data.is_zra_related,
-            needsSupport: data.needs_support,
-            suggestedFAQs: data.suggested_faqs || [],
-            followUpSuggestions: data.follow_up_suggestions || [],
-            id: Date.now() // Add unique ID for typewriter effect
-          }
+          // Send message to staff via the user message endpoint (not staff endpoint)
+          const response = await fetch(API_ENDPOINTS.ADMIN_SEND_USER_MESSAGE, {  // Use new endpoint from config
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              message: messageToSend
+            })
+          });
 
-          updatedMessages = [...updatedMessages, botMessage];
-          setMessages(updatedMessages);
-          setTypingMessageId(botMessage.id) // Set this message to use typewriter effect
-        } else {
-          throw new Error('Failed to send message')
+          if (response.ok) {
+            // Message was successfully sent to staff, no need to add again
+            setInputMessage('');
+          } else {
+            throw new Error('Failed to send message to staff');
+          }
+        } catch (error) {
+          console.error('Error sending message to staff:', error);
+          // Remove the user message if sending failed and show error
+          if (inputMessage.trim()) {
+            setMessages(prev => {
+              const newMessages = [...prev];
+              // Remove the last message if it was the one we just added
+              if (newMessages.length > 0 && newMessages[newMessages.length - 1].content === inputMessage.trim()) {
+                newMessages.pop();
+              }
+              const errorMessage = {
+                type: 'bot',
+                content: "I'm sorry, I'm experiencing technical difficulties. Please try again later.",
+                timestamp: new Date().toISOString(),
+                isError: true
+              };
+              newMessages.push(errorMessage);
+              return newMessages;
+            });
+          } else {
+            const errorMessage = {
+              type: 'bot',
+              content: "I'm sorry, I'm experiencing technical difficulties. Please try again later.",
+              timestamp: new Date().toISOString(),
+              isError: true
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          }
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        console.error('Error sending message:', error)
-        const errorMessage = {
-          type: 'bot',
-          content: currentLanguage === 'en' 
-            ? "I'm sorry, I'm experiencing technical difficulties. Please try again later."
-            : "Nshilafwaya, nkwete amashuko ya tekiniko. Mwayeshe nangu.",
-          timestamp: new Date().toISOString(),
-          isError: true
+      } else {
+        // Regular bot interaction
+        // Add user message first for better UX
+        if (inputMessage.trim()) {
+          const userMessage = {
+            type: 'user',
+            content: inputMessage.trim(),
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, userMessage]);
         }
-        updatedMessages = [...updatedMessages, errorMessage];
-        setMessages(updatedMessages);
-      } finally {
-        setIsLoading(false)
+        
+        try {
+          const response = await fetch(`${API_BASE_URL}/chatbot/chat/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: inputMessage.trim() || `I've uploaded ${selectedFiles.length} file(s) for reference. Please analyze them and respond accordingly.`,
+              session_id: sessionId || 'anonymous'
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            
+            // Update session ID if new
+            if (data.session_id && !sessionId) {
+              setSessionId(data.session_id)
+            }
+
+            // Remove any hashtags from the response
+            let processedContent = data.response;
+            processedContent = processedContent.replace(/#[a-zA-Z0-9_]+/g, '').trim();
+            
+            const botMessage = {
+              type: 'bot',
+              content: processedContent,
+              timestamp: new Date().toISOString(),
+              isZRARelated: data.is_zra_related,
+              needsSupport: data.needs_support,
+              suggestedFAQs: data.suggested_faqs || [],
+              followUpSuggestions: data.follow_up_suggestions || [],
+              id: Date.now() // Add unique ID for typewriter effect
+            }
+
+            setMessages(prev => [...prev, botMessage]);
+            setTypingMessageId(botMessage.id) // Set this message to use typewriter effect
+          } else {
+            throw new Error('Failed to send message')
+          }
+        } catch (error) {
+          console.error('Error sending message:', error)
+          // Remove user message if bot request failed and show error
+          setMessages(prev => {
+            const newMessages = [...prev];
+            // Remove the last message if it was the user's message
+            if (inputMessage.trim() && newMessages.length > 0 && newMessages[newMessages.length - 1].content === inputMessage.trim()) {
+              newMessages.pop();
+            }
+            const errorMessage = {
+              type: 'bot',
+              content: "I'm sorry, I'm experiencing technical difficulties. Please try again later.",
+              timestamp: new Date().toISOString(),
+              isError: true
+            };
+            newMessages.push(errorMessage);
+            return newMessages;
+          });
+        } finally {
+          setIsLoading(false)
+          setInputMessage(''); // Clear input after processing
+        }
       }
     }
   }
 
   const handleFAQClick = (faq) => {
-    const question = currentLanguage === 'en' 
-      ? faq.question_en 
-      : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en
+    const question = faq.question_en;
 
     setInputMessage(question)
     setShowFAQs(false)
   }
+
+  // Function to handle feedback for a message
+  const handleFeedback = (messageId, isHelpful) => {
+    const updatedMessages = messages.map(msg => {
+      if (msg.id === messageId) {
+        return {
+          ...msg,
+          feedbackGiven: true,
+          feedbackHelpful: isHelpful
+        };
+      }
+      return msg;
+    });
+    setMessages(updatedMessages);
+  };
+
+  // Function to request staff assistance
+  const requestStaffAssistance = async (messageId = null) => {
+    if (isConnectingToStaff || isConnectedToStaff) return;
+    
+    setIsConnectingToStaff(true);
+    
+    // Generate a new session ID if we're trying to reconnect after a disconnect
+    const sessionToUse = currentSessionId || generateSessionId();
+    if (!currentSessionId) {
+      setCurrentSessionId(sessionToUse);
+      // When starting a new session, allow rating to be shown again
+      ratingShownForSessionRef.current.delete(sessionToUse);
+    }
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.ADMIN_REQUEST_ASSISTANCE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          session_id: sessionToUse,
+          user_id: sessionToUse
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStaffConnectionStatus('pending');
+        
+        // Add a message to indicate staff assistance has been requested
+        const staffMessage = {
+          type: 'system',
+          content: "ZRA staff has been notified. Please hold on, a staff member will connect with you shortly.",
+          timestamp: new Date().toISOString(),
+          isStaffNotification: true
+        };
+        
+        setMessages(prev => [...prev, staffMessage]);
+      } else {
+        throw new Error('Failed to request staff assistance');
+      }
+    } catch (error) {
+      console.error('Error requesting staff assistance:', error);
+      const errorMessage = {
+        type: 'system',
+        content: "Sorry, we couldn't connect you to a staff member right now. Please try again later.",
+        timestamp: new Date().toISOString(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsConnectingToStaff(false);
+    }
+
+
+  // Function to handle rating after chat with agent
+  const handleRating = (rating) => {
+    setIsRatingSubmitted(true);
+    // In a real app, you would send this rating to the backend
+    
+    // Add rating message to chat history
+    const ratingMessage = {
+      type: 'system',
+      content: `Thank you for your feedback! You rated the agent assistance: ${rating}`,
+      timestamp: new Date().toISOString(),
+      isRating: true
+    };
+    setMessages(prev => [...prev, ratingMessage]);
+    
+    // Hide rating after a short delay
+    setTimeout(() => {
+      setShowRating(false);
+      setIsRatingSubmitted(false);
+    }, 3000);
+  };
 
   // Function to format bot responses based on content type
   const formatBotResponse = (content, message) => {
@@ -528,7 +602,73 @@ const Chatbot = ({ isOpen, onClose }) => {
       return (
         <div className="space-y-2">
           <p className="whitespace-pre-wrap">{content}</p>
-          {typingMessageId !== message.id && (
+          {!content.toLowerCase().includes('staff has been notified') && 
+           !content.toLowerCase().includes('staff member') && 
+           !content.toLowerCase().includes('connecting') && 
+           !content.toLowerCase().includes('please hold') && 
+           !isConnectedToStaff && 
+           typingMessageId !== message.id && 
+           !message.feedbackGiven && 
+           !content.toLowerCase().includes('Hello again!') && 
+           !message.isWelcome && (
+            <div className="mt-2 flex flex-col gap-2">
+              <p className="text-xs text-gray-600">Was this response helpful?</p>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleFeedback(message.id, true)}
+                  className="text-lg hover:text-green-600 transition-colors"
+                  title="Helpful"
+                >
+                  👍
+                </button>
+                <button 
+                  onClick={() => handleFeedback(message.id, false)}
+                  className="text-lg hover:text-red-600 transition-colors"
+                  title="Not Helpful"
+                >
+                  👎
+                </button>
+              </div>
+            </div>
+          )}
+          {typingMessageId !== message.id && message.feedbackGiven && message.feedbackHelpful && !message.isWelcome && (
+            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+              <p className="font-medium text-green-800">Thank you for your feedback!</p>
+              <p className="text-green-700">Do you have any other questions?</p>
+            </div>
+          )}
+          {typingMessageId !== message.id && message.feedbackGiven && !message.feedbackHelpful && !message.isWelcome && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <p className="font-medium text-yellow-800">We're sorry to hear that.</p>
+              <p className="text-yellow-700 mb-2">Here are some related questions you might find helpful:</p>
+              <div className="flex flex-wrap gap-2">
+                {message.followUpSuggestions && message.followUpSuggestions.slice(0, 2).map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setInputMessage(suggestion.question)}
+                    className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                  >
+                    {suggestion.question}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setInputMessage('')}
+                  className="text-xs bg-gray-200 text-gray-800 hover:bg-gray-300 px-2 py-1 rounded transition-colors"
+                >
+                  Continue Chat
+                </button>
+                <button
+                  onClick={() => requestStaffAssistance(message.id)}
+                  className="text-xs bg-amber-600 text-white hover:bg-amber-700 px-2 py-1 rounded transition-colors"
+                >
+                  Connect to Agent
+                </button>
+              </div>
+            </div>
+          )}
+          {typingMessageId !== message.id && !message.feedbackGiven && (
             <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
               <p className="font-medium text-blue-800">💡 Need to calculate this yourself?</p>
               <a 
@@ -561,7 +701,73 @@ const Chatbot = ({ isOpen, onClose }) => {
       return (
         <div className="space-y-2">
           <p className="whitespace-pre-wrap">{content}</p>
-          {typingMessageId !== message.id && (
+          {!content.toLowerCase().includes('staff has been notified') && 
+           !content.toLowerCase().includes('staff member') && 
+           !content.toLowerCase().includes('connecting') && 
+           !content.toLowerCase().includes('please hold') && 
+           !isConnectedToStaff && 
+           typingMessageId !== message.id && 
+           !message.feedbackGiven && 
+           !content.toLowerCase().includes('Hello again!') && 
+           !message.isWelcome && (
+            <div className="mt-2 flex flex-col gap-2">
+              <p className="text-xs text-gray-600">Was this response helpful?</p>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleFeedback(message.id, true)}
+                  className="text-lg hover:text-green-600 transition-colors"
+                  title="Helpful"
+                >
+                  👍
+                </button>
+                <button 
+                  onClick={() => handleFeedback(message.id, false)}
+                  className="text-lg hover:text-red-600 transition-colors"
+                  title="Not Helpful"
+                >
+                  👎
+                </button>
+              </div>
+            </div>
+          )}
+          {typingMessageId !== message.id && message.feedbackGiven && message.feedbackHelpful && !message.isWelcome && (
+            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+              <p className="font-medium text-green-800">Thank you for your feedback!</p>
+              <p className="text-green-700">Do you have any other questions?</p>
+            </div>
+          )}
+          {typingMessageId !== message.id && message.feedbackGiven && !message.feedbackHelpful && !message.isWelcome && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <p className="font-medium text-yellow-800">We're sorry to hear that.</p>
+              <p className="text-yellow-700 mb-2">Here are some related questions you might find helpful:</p>
+              <div className="flex flex-wrap gap-2">
+                {message.followUpSuggestions && message.followUpSuggestions.slice(0, 2).map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setInputMessage(suggestion.question)}
+                    className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                  >
+                    {suggestion.question}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setInputMessage('')}
+                  className="text-xs bg-gray-200 text-gray-800 hover:bg-gray-300 px-2 py-1 rounded transition-colors"
+                >
+                  Continue Chat
+                </button>
+                <button
+                  onClick={() => requestStaffAssistance(message.id)}
+                  className="text-xs bg-amber-600 text-white hover:bg-amber-700 px-2 py-1 rounded transition-colors"
+                >
+                  Connect to Agent
+                </button>
+              </div>
+            </div>
+          )}
+          {typingMessageId !== message.id && !message.feedbackGiven && (
             <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
               <p className="font-medium text-blue-800">📞 Contact Information:</p>
               <a 
@@ -581,14 +787,264 @@ const Chatbot = ({ isOpen, onClose }) => {
       );
     }
     
-    // Default response
-    return <p className="whitespace-pre-wrap">{content}</p>;
+    // Default response with feedback options
+    return (
+      <div className="space-y-2">
+        <p className="whitespace-pre-wrap">{content}</p>
+        {/* Only show feedback for informational bot responses, not for system notifications or when connected to staff */}
+        {!content.toLowerCase().includes('staff has been notified') && 
+         !content.toLowerCase().includes('staff member') && 
+         !content.toLowerCase().includes('connecting') && 
+         !content.toLowerCase().includes('please hold') && 
+         !isConnectedToStaff && 
+         typingMessageId !== message.id && 
+         !message.feedbackGiven && 
+         !content.toLowerCase().includes('Hello again!') && 
+         !message.isWelcome && (
+          <div className="mt-2 flex flex-col gap-2">
+            <p className="text-xs text-gray-600">Was this response helpful?</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => handleFeedback(message.id, true)}
+                className="text-lg hover:text-green-600 transition-colors"
+                title="Helpful"
+              >
+                👍
+              </button>
+              <button 
+                onClick={() => handleFeedback(message.id, false)}
+                className="text-lg hover:text-red-600 transition-colors"
+                title="Not Helpful"
+              >
+                👎
+              </button>
+            </div>
+          </div>
+        )}
+        {typingMessageId !== message.id && message.feedbackGiven && message.feedbackHelpful && !isConnectedToStaff && !message.isWelcome && (
+          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+            <p className="font-medium text-green-800">Thank you for your feedback!</p>
+            <p className="text-green-700">Do you have any other questions?</p>
+          </div>
+        )}
+        {typingMessageId !== message.id && message.feedbackGiven && !message.feedbackHelpful && !isConnectedToStaff && !message.isWelcome && (
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+            <p className="font-medium text-yellow-800">We're sorry to hear that.</p>
+            <p className="text-yellow-700 mb-2">Here are some related questions you might find helpful:</p>
+            <div className="flex flex-wrap gap-2">
+              {message.followUpSuggestions && message.followUpSuggestions.slice(0, 2).map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setInputMessage(suggestion.question)}
+                  className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-1 rounded transition-colors"
+                >
+                  {suggestion.question}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => setInputMessage('')}
+                className="text-xs bg-gray-200 text-gray-800 hover:bg-gray-300 px-2 py-1 rounded transition-colors"
+              >
+                Continue Chat
+              </button>
+              <button
+                onClick={() => requestStaffAssistance(message.id)}
+                className="text-xs bg-amber-600 text-white hover:bg-amber-700 px-2 py-1 rounded transition-colors"
+              >
+                Connect to Agent
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const insertEmoji = (emoji) => {
     setInputMessage(prev => prev + emoji)
     setShowEmojiPicker(false)
   }
+  
+
+  
+  // Function to check staff connection status
+  const checkStaffConnectionStatus = async () => {
+    if (!currentSessionId) return;
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.ADMIN_SESSION_STATUS(currentSessionId));
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Check if status changed from active to closed (to avoid repeated messages)
+        const previousStatus = previousStatusRef.current;
+        previousStatusRef.current = data.status; // Update previous status
+        
+        setStaffConnectionStatus(data.status);
+        setIsConnectedToStaff(data.is_connected_to_staff);
+        
+        // If staff has connected, show a notification
+        if (data.is_connected_to_staff && data.status === 'active') {
+          if (!messages.some(msg => msg.isStaffConnectedNotification)) {
+            const connectedMessage = {
+              type: 'system',
+              content: `ZRA staff member ${data.staff_member} has joined the chat and will assist you now.`,
+              timestamp: new Date().toISOString(),
+              isStaffConnectedNotification: true
+            };
+            setMessages(prev => [...prev, connectedMessage]);
+          }
+        } else if (data.status === 'closed' && previousStatus === 'active') {
+          // Only add the disconnect message when status changes from active to closed
+          const disconnectedMessage = {
+            type: 'system',
+            content: "The chat with ZRA staff has ended. You are now chatting with the AI assistant again.",
+            timestamp: new Date().toISOString(),
+            isStaffDisconnectedNotification: true
+          };
+          setMessages(prev => [...prev, disconnectedMessage]);
+          
+          // Only show rating interface if not already shown for this session
+          if (!ratingShownForSessionRef.current.has(currentSessionId)) {
+            setShowRating(true);
+            ratingShownForSessionRef.current.add(currentSessionId);
+          }
+          
+          // Reset staff connection status
+          setStaffConnectionStatus('not_connected');
+          setIsConnectedToStaff(false);
+          
+          // Since the session is effectively ended for staff, users would need a new session to reach staff
+          // We'll just reset the flag but allow them to request staff again
+        }
+      }
+    } catch (error) {
+      console.error('Error checking staff connection status:', error);
+    }
+  };
+  
+  // Refs to manage polling and prevent duplicates
+  const fetchAgentMessagesRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const lastMessagesRef = useRef([]);
+  const previousStatusRef = useRef(null); // Track previous staff connection status to detect changes
+  const ratingShownForSessionRef = useRef(new Set()); // Track which sessions have had rating shown
+  
+  // Function to fetch agent messages with comprehensive deduplication
+  const fetchAgentMessages = async () => {
+    const now = Date.now();
+    
+    // Debounce: prevent calls more frequent than 3 seconds
+    if (now - lastFetchTimeRef.current < 3000) {
+      return;
+    }
+    
+    // Prevent concurrent executions
+    if (fetchAgentMessagesRef.current) {
+      return;
+    }
+    
+    fetchAgentMessagesRef.current = true;
+    lastFetchTimeRef.current = now;
+
+    try {
+      if (!currentSessionId || !isConnectedToStaff) return;
+      
+      const response = await fetch(API_ENDPOINTS.ADMIN_CHAT_HISTORY(currentSessionId));
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Use more robust duplicate detection
+        const existingMessagesSet = new Set(messages.map(msg => 
+          `${msg.sender_type}-${msg.content}-${new Date(msg.timestamp).getTime()}`
+        ));
+        
+        // Track messages we've already added in this session
+        const addedMessagesSet = new Set(lastMessagesRef.current);
+        
+        const staffMessages = data.messages.filter(staffMsg => {
+          if (staffMsg.sender_type !== 'staff') return false;
+          
+          const messageKey = `${staffMsg.sender_type}-${staffMsg.message}-${new Date(staffMsg.timestamp).getTime()}`;
+          
+          // Check if this exact message already exists in current messages
+          if (existingMessagesSet.has(messageKey)) return false;
+          
+          // Check if we've already processed this message in our tracking
+          if (addedMessagesSet.has(messageKey)) return false;
+          
+          return true;
+        });
+        
+        // Add new staff messages to the chat and tracking
+        if (staffMessages.length > 0) {
+          const newMessages = staffMessages.map(staffMsg => ({
+            id: `agent-${staffMsg.id}-${Date.now()}`, // Include timestamp to ensure uniqueness
+            type: 'agent',
+            content: staffMsg.message,
+            timestamp: staffMsg.timestamp,
+            sender_type: staffMsg.sender_type
+          }));
+          
+          setMessages(prev => [...prev, ...newMessages]);
+          
+          // Update our tracking of added messages
+          staffMessages.forEach(staffMsg => {
+            const messageKey = `${staffMsg.sender_type}-${staffMsg.message}-${new Date(staffMsg.timestamp).getTime()}`;
+            lastMessagesRef.current.push(messageKey);
+          });
+          
+          // Keep only recent message keys to prevent memory bloat
+          if (lastMessagesRef.current.length > 100) {
+            lastMessagesRef.current = lastMessagesRef.current.slice(-50);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching agent messages:', error);
+    } finally {
+      // Reset the flag to allow next execution
+      fetchAgentMessagesRef.current = false;
+    }
+  };
+
+  // Effect for checking staff connection status (less frequent)
+  // Single unified effect for all staff-related polling to prevent multiple intervals
+  useEffect(() => {
+    let statusIntervalId = null;
+    let messageIntervalId = null;
+    
+    if (currentSessionId && isOpen) {
+      // Check connection status immediately
+      checkStaffConnectionStatus();
+      
+      // Set up status checking interval (every 10 seconds)
+      statusIntervalId = setInterval(checkStaffConnectionStatus, 10000);
+      
+      // Set up message fetching interval only when connected to staff
+      if (isConnectedToStaff) {
+        // Fetch agent messages immediately when connection starts
+        fetchAgentMessages();
+        
+        // Then check for new messages every 8 seconds
+        messageIntervalId = setInterval(fetchAgentMessages, 8000);
+      }
+    }
+    
+    // Cleanup function to clear all intervals
+    return () => {
+      if (statusIntervalId) {
+        clearInterval(statusIntervalId);
+      }
+      if (messageIntervalId) {
+        clearInterval(messageIntervalId);
+      }
+    };
+  }, [currentSessionId, isOpen, isConnectedToStaff]);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -621,8 +1077,7 @@ const Chatbot = ({ isOpen, onClose }) => {
       setCurrentSessionId(newSessionId);
       
       // Initialize with welcome message for new session
-      const welcomeOptions = welcomeMessages[currentLanguage];
-      const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+      const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
       const welcomeMessage = {
         type: 'bot',
         content: randomWelcome.greeting,
@@ -654,8 +1109,7 @@ const Chatbot = ({ isOpen, onClose }) => {
     setCurrentSessionId(newSessionId);
     
     // Initialize with welcome message for new session
-    const welcomeOptions = welcomeMessages[currentLanguage];
-    const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+    const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
     const welcomeMessage = {
       type: 'bot',
       content: randomWelcome.greeting,
@@ -698,7 +1152,7 @@ const Chatbot = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null
 
-  const welcome = welcomeMessages[currentLanguage]
+
 
   return (
     <div className="fixed chatbox-container z-50"
@@ -715,9 +1169,18 @@ const Chatbot = ({ isOpen, onClose }) => {
   <div className={`bg-white shadow-2xl border border-gray-200 flex flex-col h-full ${window.innerWidth <= 640 ? 'h-full max-h-[100dvh] min-h-[100dvh] rounded-none' : 'max-h-[32rem] rounded-lg'}`}>
         {/* Header */}
         <div className="bg-[#1e40af] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm sm:text-base">ZAX</span>
-            <span className="text-xs opacity-75">AI Tax Assistant</span>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm sm:text-base">
+                {isConnectedToStaff ? 'Nathan' : 'ZAX'}
+              </span>
+              <div className="relative">
+                <div className={`w-2 h-2 rounded-full ${isConnectedToStaff ? 'bg-green-400' : 'bg-green-400'} animate-pulse`}></div>
+              </div>
+            </div>
+            <div className="text-xs opacity-80">
+              {isConnectedToStaff ? 'Agent' : 'AI Assistant'}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Sidebar Toggle Button */}
@@ -749,9 +1212,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                   onClick={() => handleFAQClick(faq)}
                   className="block w-full text-left text-xs text-blue-600 hover:text-blue-800 hover:bg-white p-2 rounded transition-colors"
                 >
-                  {currentLanguage === 'en' 
-                    ? faq.question_en 
-                    : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
+                  {faq.question_en}
                 </button>
               ))}
             </div>
@@ -774,8 +1235,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                       setMessages([]);
                       const newSessionId = generateSessionId();
                       setCurrentSessionId(newSessionId);
-                      const welcomeOptions = welcomeMessages[currentLanguage];
-                      const randomWelcome = welcomeOptions[Math.floor(Math.random() * welcomeOptions.length)];
+                      const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
                       const welcomeMessage = {
                         type: 'bot',
                         content: randomWelcome.greeting,
@@ -822,6 +1282,8 @@ const Chatbot = ({ isOpen, onClose }) => {
                   ? 'bg-[#1e40af] text-white' 
                   : message.type === 'system'
                   ? 'bg-yellow-100 text-yellow-800 text-center text-xs'
+                  : message.type === 'agent'
+                  ? 'bg-gray-800 text-white'  // Darker background for agent messages
                   : message.isError
                   ? 'bg-red-100 text-red-800'
                   : 'bg-gray-100 text-gray-800'
@@ -849,12 +1311,16 @@ const Chatbot = ({ isOpen, onClose }) => {
                           onComplete={() => setTypingMessageId(null)}
                         />
                       </div>
-                    ) : (
+                    ) : message.type === 'bot' ? (
                       formatBotResponse(message.content.replace(/their/g, 'our').replace(/they/g, 'we'), message)
+                    ) : (
+                      <div className="whitespace-pre-wrap">
+                        {message.content.replace(/their/g, 'our').replace(/they/g, 'we')}
+                      </div>
                     )}
                     
                     {/* Enhanced follow-up suggestions */}
-                    {message.suggestedFAQs && message.suggestedFAQs.length > 0 && (
+                    {message.suggestedFAQs && message.suggestedFAQs.length > 0 && !message.isWelcome && (
                       <div className="mt-3 pt-2 border-t border-gray-200">
                         <p className="text-xs font-medium mb-2 text-gray-700">You might also want to know:</p>
                         <div className="flex flex-wrap gap-2">
@@ -864,9 +1330,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                               onClick={() => handleFAQClick(faq)}
                               className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition-colors border border-blue-200"
                             >
-                              {currentLanguage === 'en' 
-                                  ? faq.question_en 
-                                  : faq.translations?.find(t => t.language_code === currentLanguage)?.question || faq.question_en}
+                              {faq.question_en}
                             </button>
                           ))}
                         </div>
@@ -874,7 +1338,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                     )}
                     
                     {/* Dynamic follow-up suggestions from backend */}
-                    {typingMessageId !== message.id && message.followUpSuggestions && message.followUpSuggestions.length > 0 && (
+                    {typingMessageId !== message.id && message.followUpSuggestions && message.followUpSuggestions.length > 0 && !message.isWelcome && (
                       <div className="mt-3 pt-2 border-t border-gray-200">
                         <p className="text-xs font-medium mb-2 text-gray-700">Need more help?</p>
                         <div className="flex flex-wrap gap-2">
@@ -892,7 +1356,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                     )}
                     
                     {/* Add links to official ZRA resources if available */}
-                    {message.isZRARelated && !message.needsSupport && (
+                    {message.isZRARelated && !message.needsSupport && !message.isWelcome && (
                       <div className="mt-3 pt-2 border-t border-gray-200">
                         <p className="text-xs font-medium mb-1 text-gray-700">Official Resources:</p>
                         <div className="flex flex-wrap gap-2">
@@ -951,7 +1415,7 @@ const Chatbot = ({ isOpen, onClose }) => {
                     )}
                     
                     {/* Context-aware interactive elements for relevant processes */}
-                    {typingMessageId !== message.id && (
+                    {typingMessageId !== message.id && !message.isWelcome && (
                       <>
                         {message.content.toLowerCase().includes('register') && 
                          (message.content.toLowerCase().includes('vat') || 
@@ -1024,6 +1488,27 @@ const Chatbot = ({ isOpen, onClose }) => {
               </div>
             </div>
           )}
+          
+          {/* Rating Interface */}
+          {showRating && !isRatingSubmitted && (
+            <div className="flex justify-center mt-4">
+              <div className="bg-blue-100 border border-blue-200 rounded-lg p-3 text-center">
+                <p className="text-sm font-medium text-blue-800 mb-2">How was your experience with the agent?</p>
+                <div className="flex justify-center gap-3">
+                  {['😀', '🙂', '😐', '😕', '😞'].map((emoji, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleRating(emoji)}
+                      className="text-2xl hover:scale-125 transition-transform"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
 
@@ -1035,7 +1520,7 @@ const Chatbot = ({ isOpen, onClose }) => {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 pr-14 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none w-full"
-              placeholder={currentLanguage === 'en' ? "Type your question..." : "Lembani mupusho wenu..."}
+              placeholder="Type your question..."
               rows="1"
               disabled={isLoading}
             />
@@ -1113,19 +1598,35 @@ const Chatbot = ({ isOpen, onClose }) => {
           )}
           
           <div className="flex justify-between items-center">
-            <div className="text-xs text-gray-500">
-              {uploadingFiles ? 'Uploading files...' : `${selectedFiles.length} file(s) selected`}
+            <div className="text-xs text-gray-500 flex items-center gap-2">
+              {isConnectingToStaff && (
+                <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full flex items-center">
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1 animate-pulse"></span>
+                  Connecting to staff...
+                </span>
+              )}
+              {isConnectedToStaff && !isConnectingToStaff && (
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                  Connected to staff
+                </span>
+              )}
             </div>
-            <button 
-              onClick={sendMessage}
-              disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || uploadingFiles}
-              className="bg-[#1e40af] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              {isLoading || uploadingFiles ? '...' : (currentLanguage === 'en' ? 'Send' : 'Tuma')}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-gray-500">
+                {uploadingFiles ? 'Uploading files...' : `${selectedFiles.length} file(s) selected`}
+              </div>
+              <button 
+                onClick={sendMessage}
+                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || uploadingFiles}
+                className="bg-[#1e40af] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
+                {isLoading || uploadingFiles ? '...' : 'Send'}
+              </button>
+            </div>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            {welcome.note}
+            {welcomeMessages[0].note}
           </p>
         </div>
       </div>

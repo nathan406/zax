@@ -1,10 +1,64 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Chatbot from './components/Chatbot'
+import Admin from './admin/Admin'
 
 function App() {
   const [showChat, setShowChat] = useState(false)
   const [selectedService, setSelectedService] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
+  const [adminAccessSequence, setAdminAccessSequence] = useState([]);
+
+  // Check if we're on the admin route
+  useEffect(() => {
+    if (window.location.pathname === '/admin') {
+      setShowAdmin(true);
+    } else {
+      setShowAdmin(false);
+    }
+  }, []);
+
+  // Check if we're on admin route when component mounts
+  useEffect(() => {
+    const isAdminPage = window.location.pathname === '/admin' || 
+                        window.location.search.includes('admin=true');
+                        
+    if (isAdminPage) {
+      setShowAdmin(true);
+    }
+  }, []);
+
+  // Function to handle admin access via keyboard sequence (for development only)
+  const handleAdminAccess = (e) => {
+    // For development purposes only - remove this in production
+    // Add key to sequence (we'll use a sequence like 'Z-R-A' for admin access)
+    if (window.location.pathname !== '/admin') {
+      const newSequence = [...adminAccessSequence, e.key.toUpperCase()];
+      
+      // Keep only last 3 keys
+      if (newSequence.length > 3) {
+        newSequence.shift();
+      }
+      
+      setAdminAccessSequence(newSequence);
+      
+      // Check if sequence matches 'ZRA'
+      if (newSequence.join('') === 'ZRA') {
+        setShowAdmin(true);
+        setAdminAccessSequence([]); // Reset sequence
+      }
+    }
+  };
+
+  // Add keydown event listener when component mounts
+  useEffect(() => {
+    if (window.location.pathname !== '/admin') {
+      window.addEventListener('keydown', handleAdminAccess);
+      return () => {
+        window.removeEventListener('keydown', handleAdminAccess);
+      };
+    }
+  }, [adminAccessSequence]);
 
   const services = [
     'Register for a TPIN',
@@ -57,25 +111,34 @@ function App() {
   ]
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 font-sans overflow-x-hidden">
-      {/* Top navigation bar */}
-      <div className="bg-[#1e40af] text-white text-xs py-2 px-2 sm:px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
-          <div className="flex gap-3 sm:gap-6 text-xs">
-            <span className="hover:underline cursor-pointer">Motor Vehicle Search</span>
-            <span className="hover:underline cursor-pointer">LOGIN</span>
+    <>
+      {/* Admin Interface - Only shown when admin access is triggered or on admin path */}
+      {showAdmin ? (
+        <Admin onClose={() => {
+          setShowAdmin(false);
+          // Optionally redirect to main page
+          window.location.hash = '';
+        }} />
+      ) : (
+        <div className="min-h-screen flex flex-col bg-gray-50 font-sans overflow-x-hidden">
+          {/* Top navigation bar */}
+          <div className="bg-[#1e40af] text-white text-xs py-2 px-2 sm:px-4">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+              <div className="flex gap-3 sm:gap-6 text-xs">
+                <span className="hover:underline cursor-pointer">Motor Vehicle Search</span>
+                <span className="hover:underline cursor-pointer">LOGIN</span>
+              </div>
+              <div className="hidden sm:flex gap-3 lg:gap-6 text-xs">
+                <span className="hover:underline cursor-pointer">About Us</span>
+                <span className="hover:underline cursor-pointer">Tax Payer Charter</span>
+                <span className="hover:underline cursor-pointer">Tenders</span>
+                <span className="hover:underline cursor-pointer">Vacancies</span>
+                <span className="hover:underline cursor-pointer">Careers</span>
+                <span className="hover:underline cursor-pointer">Tutorials</span>
+                <span className="hover:underline cursor-pointer">Contact Us</span>
+              </div>
+            </div>
           </div>
-          <div className="hidden sm:flex gap-3 lg:gap-6 text-xs">
-            <span className="hover:underline cursor-pointer">About Us</span>
-            <span className="hover:underline cursor-pointer">Tax Payer Charter</span>
-            <span className="hover:underline cursor-pointer">Tenders</span>
-            <span className="hover:underline cursor-pointer">Vacancies</span>
-            <span className="hover:underline cursor-pointer">Careers</span>
-            <span className="hover:underline cursor-pointer">Tutorials</span>
-            <span className="hover:underline cursor-pointer">Contact Us</span>
-          </div>
-        </div>
-      </div>
 
       {/* Header with logo */}
       <header className="bg-white shadow-sm">
@@ -385,6 +448,8 @@ function App() {
       {/* Enhanced Chatbot Interface */}
       <Chatbot isOpen={showChat} onClose={() => setShowChat(false)} />
     </div>
+  )}
+</>
   )
 }
 

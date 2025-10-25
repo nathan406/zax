@@ -12,6 +12,14 @@ export const API_ENDPOINTS = {
   CHAT_HISTORY: `${API_BASE_URL}/chatbot/chat/`,
   CHAT_LOGS: `${API_BASE_URL}/chatbot/logs/`,
   FILE_UPLOAD: `${API_BASE_URL}/chatbot/upload/`,
+  ADMIN_CONNECT: `${API_BASE_URL}/chatbot/admin/connect/`,
+  ADMIN_SEND_MESSAGE: `${API_BASE_URL}/chatbot/admin/send_message/`,
+  ADMIN_SEND_USER_MESSAGE: `${API_BASE_URL}/chatbot/admin/send_user_message/`,
+  ADMIN_ACTIVE_SESSIONS: `${API_BASE_URL}/chatbot/admin/active_sessions/`,
+  ADMIN_CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chatbot/admin/chat_history/${sessionId}/`,
+  ADMIN_END_SESSION: `${API_BASE_URL}/chatbot/admin/end_session/`,
+  ADMIN_REQUEST_ASSISTANCE: `${API_BASE_URL}/chatbot/admin/request_assistance/`,
+  ADMIN_SESSION_STATUS: (sessionId) => `${API_BASE_URL}/chatbot/admin/session_status/${sessionId}/`,
 };
 
 // Default headers for API requests
