@@ -99,6 +99,8 @@ const Chatbot = ({ isOpen, onClose }) => {
   const fileInputRef = useRef(null)
   const messagesEndRef = useRef(null)
 
+  // Track whether we've already shown the "staff connected" notification per session
+  const staffConnectedShownRef = useRef(new Set()); // Track which sessions we've shown the "staff connected" notification for
 
   // File upload functions
   const handleFileChange = (e) => {
@@ -350,9 +352,9 @@ const Chatbot = ({ isOpen, onClose }) => {
       setCurrentSessionId(sessionToUse);
     }
 
-    // Upload files first if any
+    // Upload files first if any (use the session we're going to send with)
     if (selectedFiles.length > 0) {
-      await uploadFiles(currentSessionId || sessionId || 'anonymous')
+      await uploadFiles(sessionToUse)
     }
 
     // If there's text content or files were uploaded
@@ -360,7 +362,7 @@ const Chatbot = ({ isOpen, onClose }) => {
       setIsLoading(true)
 
       // If connected to staff, send the message to staff instead of the bot
-      if (isConnectedToStaff && currentSessionId) {
+          if (isConnectedToStaff && sessionToUse) {
         try {
           // Add user message to chat immediately for better UX
           if (inputMessage.trim()) {
@@ -370,6 +372,8 @@ const Chatbot = ({ isOpen, onClose }) => {
               timestamp: new Date().toISOString()
             };
             setMessages(prev => [...prev, userMessage]);
+            // Clear the input immediately for better UX
+            setInputMessage('');
           }
           
           // Send the text message separately from files
@@ -386,7 +390,7 @@ const Chatbot = ({ isOpen, onClose }) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              session_id: currentSessionId,
+              session_id: sessionToUse,
               message: messageToSend
             })
           });
@@ -430,7 +434,7 @@ const Chatbot = ({ isOpen, onClose }) => {
         }
       } else {
         // Regular bot interaction
-        // Add user message first for better UX
+        // Add user message first for better UX and clear input immediately
         if (inputMessage.trim()) {
           const userMessage = {
             type: 'user',
@@ -438,6 +442,7 @@ const Chatbot = ({ isOpen, onClose }) => {
             timestamp: new Date().toISOString()
           };
           setMessages(prev => [...prev, userMessage]);
+          setInputMessage('');
         }
         
         try {
@@ -448,7 +453,7 @@ const Chatbot = ({ isOpen, onClose }) => {
             },
             body: JSON.stringify({
               message: inputMessage.trim() || `I've uploaded ${selectedFiles.length} file(s) for reference. Please analyze them and respond accordingly.`,
-              session_id: sessionId || 'anonymous'
+              session_id: sessionToUse || sessionId || 'anonymous'
             })
           })
 
@@ -1071,16 +1076,16 @@ const Chatbot = ({ isOpen, onClose }) => {
       // Check connection status immediately
       checkStaffConnectionStatus();
       
-      // Set up status checking interval (every 3 seconds for faster updates)
-      statusIntervalId = setInterval(checkStaffConnectionStatus, 3000);
+    // Set up status checking interval (every 3 seconds to avoid rate limits)
+    statusIntervalId = setInterval(checkStaffConnectionStatus, 3000);
       
       // Set up message fetching interval only when connected to staff
       if (isConnectedToStaff) {
         // Fetch agent messages immediately when connection starts
         fetchAgentMessages();
         
-        // Then check for new messages every 2 seconds for faster updates
-        messageIntervalId = setInterval(fetchAgentMessages, 2000);
+    // Then check for new messages every 2 seconds for a balance of speed and rate limits
+    messageIntervalId = setInterval(fetchAgentMessages, 2000);
       }
     }
     
@@ -1155,17 +1160,6 @@ const Chatbot = ({ isOpen, onClose }) => {
     localStorage.removeItem(CHAT_HISTORY_KEY);
     setMessages([]);
     const newSessionId = generateSessionId();
-    setCurrentSessionId(newSessionId);
-    
-    // Initialize with welcome message for new session
-    const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-    const welcomeMessage = {
-      type: 'bot',
-      content: randomWelcome.greeting,
-      timestamp: new Date().toISOString(),
-      isWelcome: true,
-      welcomeData: randomWelcome
-    };
     const newMessages = [welcomeMessage];
     setMessages(newMessages);
     
@@ -1185,6 +1179,9 @@ const Chatbot = ({ isOpen, onClose }) => {
     if (isOpen) {
       // Reset welcome visibility first
       setWelcomeVisible(false)
+              // Clear the shown flag so future reconnections will show again
+              const sessionKey = currentSessionId || 'unknown-session';
+              staffConnectedShownRef.current.delete(sessionKey);
       // Chatbot opens instantly
       setChatVisible(true)
       // Welcome text fades in immediately (3-second CSS transition)

@@ -25,6 +25,7 @@ const Admin = () => {
   const [activeSessions, setActiveSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
+  // files are shown by default for staff; no toggle state required
   const [newMessage, setNewMessage] = useState('');
   const [refreshIntervalId, setRefreshIntervalId] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -96,8 +97,8 @@ const Admin = () => {
     // Initial fetch
     fetchActiveSessions();
 
-    // Set up interval to fetch every 2 seconds for better responsiveness
-    const intervalId = setInterval(fetchActiveSessions, 2000);
+    // Set up interval to fetch every 3 seconds to reduce rate limiting
+    const intervalId = setInterval(fetchActiveSessions, 3000);
     setRefreshIntervalId(intervalId);
   };
 
@@ -135,7 +136,8 @@ const Admin = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ session_id })
+        // Include explicit admin flag so backend can verify this request is from the admin UI
+        body: JSON.stringify({ session_id, admin: true })
       });
 
       if (response.ok) {
@@ -143,8 +145,8 @@ const Admin = () => {
         // Update with actual session data
         setSelectedSession(data);
         
-        // Fetch chat history for this session
-        fetchChatHistory(session_id);
+  // Fetch chat history for this session (include files by default)
+  fetchChatHistory(session_id, true);
       } else {
         const errorData = await response.json();
         setNotification({ type: 'error', message: `Error connecting to session: ${errorData.error}` });
@@ -160,9 +162,10 @@ const Admin = () => {
   };
 
   // Fetch chat history for a session
-  const fetchChatHistory = async (session_id) => {
+  const fetchChatHistory = async (session_id, includeFiles = true) => {
     try {
-      const response = await fetch(API_ENDPOINTS.ADMIN_CHAT_HISTORY(session_id), {
+      const url = API_ENDPOINTS.ADMIN_CHAT_HISTORY(session_id) + (includeFiles ? '?include_files=true' : '');
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -173,8 +176,8 @@ const Admin = () => {
         const data = await response.json();
         let allMessages = [...data.messages];
         
-        // Add file information as system messages if there are files
-        if (data.files && data.files.length > 0) {
+        // Optionally add file information as system messages if includeFiles was requested
+        if (includeFiles && data.files && data.files.length > 0) {
           data.files.forEach(file => {
             const fileMessage = {
               id: `file-${file.id}`,
@@ -211,10 +214,10 @@ const Admin = () => {
       // Fetch initial chat history
       fetchChatHistory(selectedSession.session_id);
       
-      // Set up polling for new messages every 1.5 seconds for faster updates
+      // Set up polling for new messages every 2 seconds (files included)
       const intervalId = setInterval(() => {
         fetchChatHistory(selectedSession.session_id);
-      }, 1500);
+      }, 2000);
       
       return () => clearInterval(intervalId);
     }
@@ -230,9 +233,11 @@ const Admin = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        // Include admin flag to indicate this originates from admin UI
         body: JSON.stringify({ 
           session_id: selectedSession.session_id, 
-          message: newMessage 
+          message: newMessage,
+          admin: true
         })
       });
 
@@ -494,12 +499,14 @@ const Admin = () => {
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={endSession}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-                >
-                  End Session
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={endSession}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                  >
+                    End Session
+                  </button>
+                </div>
               </div>
             </div>
             

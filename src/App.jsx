@@ -7,7 +7,7 @@ function App() {
   const [selectedService, setSelectedService] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [showAdmin, setShowAdmin] = useState(false)
-  const [adminAccessSequence, setAdminAccessSequence] = useState([]);
+  
 
   // Check if we're on the admin route
   useEffect(() => {
@@ -28,37 +28,8 @@ function App() {
     }
   }, []);
 
-  // Function to handle admin access via keyboard sequence (for development only)
-  const handleAdminAccess = (e) => {
-    // For development purposes only - remove this in production
-    // Add key to sequence (we'll use a sequence like 'Z-R-A' for admin access)
-    if (window.location.pathname !== '/admin') {
-      const newSequence = [...adminAccessSequence, e.key.toUpperCase()];
-      
-      // Keep only last 3 keys
-      if (newSequence.length > 3) {
-        newSequence.shift();
-      }
-      
-      setAdminAccessSequence(newSequence);
-      
-      // Check if sequence matches 'ZRA'
-      if (newSequence.join('') === 'ZRA') {
-        setShowAdmin(true);
-        setAdminAccessSequence([]); // Reset sequence
-      }
-    }
-  };
-
-  // Add keydown event listener when component mounts
-  useEffect(() => {
-    if (window.location.pathname !== '/admin') {
-      window.addEventListener('keydown', handleAdminAccess);
-      return () => {
-        window.removeEventListener('keydown', handleAdminAccess);
-      };
-    }
-  }, [adminAccessSequence]);
+  // NOTE: Removed keyboard shortcut admin access. Admin UI is now accessible only
+  // via the '/admin' path or by including '?admin=true' in the URL query string.
 
   const services = [
     'Register for a TPIN',
